@@ -211,7 +211,7 @@ end
 -- bar color and opacity from the settings
 local function ApplyColor(tex, unit)
   local r, g, b = ColorOf(unit)
-  tex:SetColorTexture(r, g, b, ns.db.opacity)
+  tex:SetColorTexture(r, g, b, ns.db.opacity / 100)
 end
 
 -- copy the shape masks of the bar fill onto the damage texture, so it follows the bar frame
@@ -427,9 +427,59 @@ frame:SetScript("OnEvent", function(_, event, ...)
   events[event](...)
 end)
 
+-- set the opacity in percent from the settings page, a command, or the number box
+local function SetOpacity(percent)
+  local value = math.max(20, math.min(100, math.floor(percent + 0.5)))
+  -- the settings value also moves the slider and runs Refresh
+  if not pcall(Settings.SetValue, "EstiDmg_opacity", value) then
+    ns.db.opacity = value
+    Refresh()
+  end
+  return value
+end
+
+-- best effort: a number box next to the opacity slider; the control is Blizzard's, so all guarded
+local function OpacityBox()
+  if not SettingsSliderControlMixin then return end
+  hooksecurefunc(SettingsSliderControlMixin, "Init", function(self, initializer)
+    pcall(function()
+      local box = self.EstiDmgBox
+      if initializer:GetSetting():GetVariable() ~= "EstiDmg_opacity" then
+        if box then box:Hide() end
+        return
+      end
+      if not box then
+        box = CreateFrame("EditBox", nil, self, "InputBoxTemplate")
+        box:SetSize(40, 20)
+        box:SetAutoFocus(false)
+        box:SetNumeric(true)
+        box:SetMaxLetters(3)
+        box:SetPoint("RIGHT", self, "RIGHT", -8, 0)
+        box:SetScript("OnEnterPressed", function(b)
+          SetOpacity(tonumber(b:GetText()) or ns.db.opacity)
+          b:ClearFocus()
+        end)
+        box:SetScript("OnEscapePressed", function(b)
+          b:SetText(ns.db.opacity)
+          b:ClearFocus()
+        end)
+        self.EstiDmgBox = box
+        -- keep the box in step when the slider moves
+        Settings.SetOnValueChangedCallback("EstiDmg_opacity", function(_, _, value)
+          pcall(box.SetText, box, value)
+        end, box)
+      end
+      box:SetText(ns.db.opacity)
+      box:Show()
+    end)
+  end)
+end
+
 -- saved state; settings page once loaded
 ns.Store("EstiDmgDB", { enabled = true, nameplates = true, frames = true, own = true, color = "darkred", custom = { 0.6, 0.05, 0.05 },
-  plateColor = "darkred", plateCustom = { 0.6, 0.05, 0.05 }, opacity = 0.85 }, function()
+  plateColor = "darkred", plateCustom = { 0.6, 0.05, 0.05 }, opacity = 85 }, function(db)
+  -- opacity is a percent now; older versions saved a fraction
+  if db.opacity <= 1 then db.opacity = math.floor(db.opacity * 100 + 0.5) end
   ns.Settings()
   ns.Checkbox("enabled", "Enabled", "Mark estimated damage on enemy health bars", Refresh)
   ns.Checkbox("nameplates", "Nameplates", "Mark the damage on enemy nameplates", Refresh)
@@ -439,8 +489,9 @@ ns.Store("EstiDmgDB", { enabled = true, nameplates = true, frames = true, own = 
   choices[#choices + 1] = { "custom", "Custom..." }
   ns.Dropdown("color", "Unit frame color", choices, "Bar color on target and focus frames; Custom opens the color picker", OnColor("frames"))
   ns.Dropdown("plateColor", "Nameplate color", choices, "Bar color on nameplates; Custom opens the color picker", OnColor("plates"))
-  ns.Slider("opacity", "Bar opacity", 0.2, 1, 0.05, "How solid the damage bar is", Refresh)
+  ns.Slider("opacity", "Bar opacity (%)", 20, 100, 5, "How solid the damage bar is", Refresh)
   ns.Checkbox("own", "Own casts", "Show the damage of your own cast on your target", Refresh)
+  OpacityBox()
 end)
 
 -- chat commands
@@ -452,6 +503,12 @@ ns.Command({
   help = "pick a free bar color",
   args = { { name = "where", choices = { "frames", "plates" } } },
   run = function(args) PickColor(args.where:lower()) end,
+})
+ns.Command({
+  name = "opacity",
+  help = "set the bar opacity in percent",
+  args = { { name = "percent", type = "number", min = 20, max = 100 } },
+  run = function(args) ns.Print("opacity " .. ns.Color("value", SetOpacity(args.percent) .. "%")) end,
 })
 ns.Command({ name = "config", help = "open the settings page", run = ns.OpenSettings })
 ns.Slash({ "/estidmg", "/edmg", "/esd" }, Status)
