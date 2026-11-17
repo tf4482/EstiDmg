@@ -5,6 +5,8 @@ local L = ns.L
 
 -- estimate cache by spell ID; false means no damage number found
 local estimates = {}
+-- spell IDs whose data was requested once; the game answers at once, so no repeats
+local requested = {}
 -- damage words that must follow the number in the spell description
 local WORDS = { "damage", "schaden", "dégâts", "daño", "dano" }
 -- bar overlay per health bar
@@ -89,7 +91,10 @@ local function Estimate(spellID)
   end
   local desc = C_Spell.GetSpellDescription(spellID)
   if not desc or desc == "" then
-    C_Spell.RequestLoadSpellData(spellID)
+    if not requested[spellID] then
+      requested[spellID] = true
+      C_Spell.RequestLoadSpellData(spellID)
+    end
     return nil
   end
   local damage, school = ParseDamage(desc)
@@ -556,8 +561,8 @@ events.ACTIVE_TALENT_GROUP_CHANGED = OnTalents
 events.TRAIT_CONFIG_UPDATED = OnTalents
 
 -- spell text arrived after a request
-function events.SPELL_DATA_LOAD_RESULT()
-  if ns.db ~= nil and ns.db.enabled then Refresh() end
+function events.SPELL_DATA_LOAD_RESULT(spellID)
+  if requested[spellID] and ns.db ~= nil and ns.db.enabled then Refresh() end
 end
 
 -- one frame dispatching all events above
