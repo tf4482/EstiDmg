@@ -96,12 +96,16 @@ local function GetOverlay(bar)
     clip:SetClipsChildren(true)
     ov = CreateFrame("StatusBar", nil, clip)
     ov:SetStatusBarTexture("Interface/Buttons/WHITE8X8")
-    ov:SetStatusBarColor(1, 0.1, 0.1, 0.6)
+    ov:SetStatusBarColor(1, 0.1, 0.1, 0.5)
     -- fill grows to the left, starting at the end of the current health
     ov:SetReverseFill(true)
     local edge = bar:GetStatusBarTexture()
     ov:SetPoint("TOPRIGHT", edge, "TOPRIGHT")
     ov:SetPoint("BOTTOMRIGHT", edge, "BOTTOMRIGHT")
+    -- same shape mask as the green fill, when the frame has one
+    local parent = bar:GetParent()
+    local mask = parent and parent.HealthBarMask
+    if mask then ov:GetStatusBarTexture():AddMaskTexture(mask) end
     overlays[bar] = ov
   end
   return ov
