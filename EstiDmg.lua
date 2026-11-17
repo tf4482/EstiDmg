@@ -1,4 +1,4 @@
--- EstiDmg: marks the estimated damage of casts on enemy health bars
+-- EstiDmg: marks the estimated damage of casts, and optionally a crit extension, on enemy health bars
 
 local _, ns = ...
 
@@ -24,12 +24,41 @@ local plateUnits = {}
 -- units currently showing an estimate, by unit token
 local showing = {}
 
+-- spell school masks: holy 2, fire 4, nature 8, frost 16, shadow 32, arcane 64
+local SCHOOL_MASKS = { 2, 4, 8, 16, 32, 64 }
+-- localized school names by mask, built on first use
+local schoolNames
+-- talents that raise the spell crit damage bonus: English name, class, schools or spell names
+local CRIT_TALENTS = {
+  { name = "Elemental Fury", class = "SHAMAN", schools = { 4, 8, 16 } },
+  { name = "Ice Shards", class = "MAGE", schools = { 16 } },
+  { name = "Ruin", class = "WARLOCK", schools = { 4, 32 } },
+  { name = "Vengeance", class = "DRUID", spells = { "Wrath", "Starfire", "Moonfire" } },
+}
+-- talent ranks as fraction of the maximum, by talent name; nil until read
+local talentRanks
+
 -- number from text with thousands separators dropped
 local function ToNumber(text)
   return tonumber((text:gsub("[%.,](%d%d%d)", "%1")))
 end
 
--- first damage value in a description; a range like "10 to 20" gives its middle
+-- spell school mask named in a lowercase text
+local function SchoolOf(text)
+  if not schoolNames then
+    schoolNames = {}
+    local get = (C_Spell and C_Spell.GetSchoolString) or GetSchoolString
+    for _, mask in ipairs(SCHOOL_MASKS) do
+      local name = get and get(mask)
+      if name then schoolNames[mask] = name:lower() end
+    end
+  end
+  for mask, name in pairs(schoolNames) do
+    if text:find(name, 1, true) then return mask end
+  end
+end
+
+-- first damage value and its school in a description; a range like "10 to 20" gives its middle
 local function ParseDamage(desc)
   desc = desc:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
   local from = 1
@@ -43,24 +72,65 @@ local function ParseDamage(desc)
     for _, word in ipairs(WORDS) do
       if after:find(word, 1, true) then
         local low, top = ToNumber(num), high and ToNumber(high)
-        if low then return top and (low + top) / 2 or low end
+        if low then return top and (low + top) / 2 or low, SchoolOf(after) end
       end
     end
     from = e + 1
   end
 end
 
--- cached damage estimate for a spell; requests spell data while it is missing
+-- cached damage estimate and school for a spell; requests spell data while it is missing
 local function Estimate(spellID)
   local cached = estimates[spellID]
-  if cached ~= nil then return cached or nil end
+  if cached ~= nil then
+    if cached then return cached[1], cached[2] end
+    return nil
+  end
   local desc = C_Spell.GetSpellDescription(spellID)
   if not desc or desc == "" then
     C_Spell.RequestLoadSpellData(spellID)
     return nil
   end
-  estimates[spellID] = ParseDamage(desc) or false
-  return estimates[spellID] or nil
+  local damage, school = ParseDamage(desc)
+  estimates[spellID] = damage and { damage, school } or false
+  return damage, school
+end
+
+-- read talent ranks as fraction of the maximum rank, by name; guarded for other clients
+local function ReadTalents()
+  talentRanks = {}
+  if not (GetNumTalentTabs and GetNumTalents and GetTalentInfo) then return end
+  pcall(function()
+    for tab = 1, GetNumTalentTabs() do
+      for i = 1, GetNumTalents(tab) do
+        local name, _, _, _, rank, maxRank = GetTalentInfo(tab, i)
+        if name and maxRank and maxRank > 0 then talentRanks[name] = rank / maxRank end
+      end
+    end
+  end)
+end
+
+-- spell crit multiplier of the player: base 1.5, matching talents add to the crit bonus
+local function CritMultiplier(spellID, school)
+  if not talentRanks then ReadTalents() end
+  local _, class = UnitClass("player")
+  local info = C_Spell.GetSpellInfo(spellID)
+  local spellName = info and info.name
+  local extra = 0
+  for _, talent in ipairs(CRIT_TALENTS) do
+    local fraction = talent.class == class and talentRanks[talent.name]
+    if fraction and fraction > 0 then
+      local applies = false
+      for _, mask in ipairs(talent.schools or {}) do
+        if mask == school then applies = true end
+      end
+      for _, name in ipairs(talent.spells or {}) do
+        if name == spellName then applies = true end
+      end
+      if applies then extra = extra + fraction end
+    end
+  end
+  return 1 + 0.5 * (1 + extra)
 end
 
 -- target and focus frame names of common unit frame addons
@@ -186,21 +256,36 @@ local function GetOverlay(bar)
     tex:SetPoint("TOPLEFT", ov:GetStatusBarTexture(), "TOPLEFT")
     tex:SetPoint("BOTTOMRIGHT", edge, "BOTTOMRIGHT")
     tex:Hide()
-    o = { ov = ov, tex = tex, masks = {} }
+    -- second helper and texture for the crit extension, placed in front of the damage part
+    local critOv = CreateFrame("StatusBar", nil, bar)
+    critOv:SetStatusBarTexture("Interface/Buttons/WHITE8X8")
+    critOv:SetAlpha(0)
+    critOv:SetReverseFill(true)
+    critOv:SetPoint("TOPRIGHT", edge, "TOPRIGHT")
+    critOv:SetPoint("BOTTOMRIGHT", edge, "BOTTOMRIGHT")
+    local critTex = bar:CreateTexture(nil, "ARTWORK", nil, 2)
+    critTex:SetPoint("TOPLEFT", critOv:GetStatusBarTexture(), "TOPLEFT")
+    critTex:SetPoint("BOTTOMRIGHT", ov:GetStatusBarTexture(), "BOTTOMLEFT")
+    critTex:Hide()
+    o = { ov = ov, tex = tex, critOv = critOv, critTex = critTex, masks = {} }
     overlays[bar] = o
   end
   return o
 end
 
--- settings keys of the color and custom color: unit frames or nameplates
-local function ColorKeys(unit)
-  if unit == "target" or unit == "focus" then return "color", "custom" end
+-- settings keys of the color and custom color: unit frames or nameplates, damage or crit
+local function ColorKeys(unit, crit)
+  if unit == "target" or unit == "focus" then
+    if crit then return "critColor", "critCustom" end
+    return "color", "custom"
+  end
+  if crit then return "plateCritColor", "plateCritCustom" end
   return "plateColor", "plateCustom"
 end
 
 -- red, green, blue of the chosen bar color for a unit
-local function ColorOf(unit)
-  local colorKey, customKey = ColorKeys(unit)
+local function ColorOf(unit, crit)
+  local colorKey, customKey = ColorKeys(unit, crit)
   if ns.db[colorKey] == "custom" then return unpack(ns.db[customKey]) end
   for _, c in ipairs(COLORS) do
     if c[1] == ns.db[colorKey] then return c[3], c[4], c[5] end
@@ -209,8 +294,8 @@ local function ColorOf(unit)
 end
 
 -- bar color and opacity from the settings
-local function ApplyColor(tex, unit)
-  local r, g, b = ColorOf(unit)
+local function ApplyColor(tex, unit, crit)
+  local r, g, b = ColorOf(unit, crit)
   tex:SetColorTexture(r, g, b, ns.db.opacity / 100)
 end
 
@@ -228,12 +313,20 @@ local function SyncMasks(o, bar)
     if not o.masks[mask] then
       o.masks[mask] = true
       o.tex:AddMaskTexture(mask)
+      o.critTex:AddMaskTexture(mask)
     end
   end
 end
 
--- mark the damage as the part of the bar that would be lost; works with secret health
-local function DrawBar(bar, unit, damage)
+-- hide the damage and crit parts of a bar
+local function HideOverlay(bar)
+  local o = GetOverlay(bar)
+  o.tex:Hide()
+  o.critTex:Hide()
+end
+
+-- mark the damage, and the crit extension when given, on the bar; works with secret health
+local function DrawBar(bar, unit, damage, crit)
   local o = GetOverlay(bar)
   SyncMasks(o, bar)
   o.ov:SetWidth(bar:GetWidth())
@@ -241,6 +334,15 @@ local function DrawBar(bar, unit, damage)
   o.ov:SetValue(damage)
   ApplyColor(o.tex, unit)
   o.tex:Show()
+  if crit then
+    o.critOv:SetWidth(bar:GetWidth())
+    o.critOv:SetMinMaxValues(0, UnitHealthMax(unit))
+    o.critOv:SetValue(crit)
+    ApplyColor(o.critTex, unit, true)
+    o.critTex:Show()
+  else
+    o.critTex:Hide()
+  end
 end
 
 -- whether this unit type is switched on in the settings
@@ -258,12 +360,16 @@ local function CastSpellID(unit)
   return spellID
 end
 
--- damage to show: own cast on the target first, then the enemy's own cast
+-- damage and crit damage to show: own cast on the target first, then the enemy cast
 local function DamageFor(unit)
-  local spellID
-  if ns.db.own and UnitIsUnit(unit, "target") then spellID = CastSpellID("player") end
-  spellID = spellID or CastSpellID(unit)
-  return spellID and Estimate(spellID)
+  local own = ns.db.own and UnitIsUnit(unit, "target") and CastSpellID("player")
+  local spellID = own or CastSpellID(unit)
+  if not spellID then return nil end
+  local damage, school = Estimate(spellID)
+  if not damage then return nil end
+  -- the crit estimate uses the player talents, so only for the player cast
+  local crit = own and ns.db.crit and damage * CritMultiplier(spellID, school) or nil
+  return damage, crit
 end
 
 -- show or clear the damage bar for one unit
@@ -272,13 +378,13 @@ local function Update(unit)
   -- only target, focus, and nameplates; other tokens are not allowed
   if unit ~= "target" and unit ~= "focus" and unit:sub(1, 9) ~= "nameplate" then return end
   local bars = BarsFor(unit)
-  for _, bar in ipairs(bars) do GetOverlay(bar).tex:Hide() end
+  for _, bar in ipairs(bars) do HideOverlay(bar) end
   showing[unit] = nil
   if not (ns.db.enabled and Wanted(unit) and UnitCanAttack("player", unit)) then return end
-  local damage = DamageFor(unit)
+  local damage, crit = DamageFor(unit)
   if not damage then return end
   showing[unit] = true
-  for _, bar in ipairs(bars) do DrawBar(bar, unit, damage) end
+  for _, bar in ipairs(bars) do DrawBar(bar, unit, damage, crit) end
 end
 
 -- update every visible unit
@@ -320,8 +426,9 @@ local function Debug()
     .. ", hostile " .. tostring(UnitCanAttack("player", "target")))
   ns.Status("bars", #bars .. " on target frame, " .. ((plate and PlateBar(plate)) and "1" or "0") .. " on plate")
   if not lastSpell then return end
-  local damage = Estimate(lastSpell)
-  ns.Status("spell", lastSpell .. ", estimate " .. tostring(damage))
+  local damage, school = Estimate(lastSpell)
+  ns.Status("spell", lastSpell .. ", estimate " .. tostring(damage) .. ", school " .. tostring(school)
+    .. ", crit x" .. string.format("%.2f", CritMultiplier(lastSpell, school)))
   if not damage then
     -- no number found: show the start of the description
     local desc = C_Spell.GetSpellDescription(lastSpell)
@@ -331,18 +438,19 @@ local function Debug()
   -- draw on the target frame and the plate now and report whether they are shown
   local plateBar = plate and PlateBar(plate)
   for _, bar in ipairs({ bars[1] or false, plateBar or false }) do
-    if bar then DrawBar(bar, "target", damage) end
+    if bar then DrawBar(bar, "target", damage, ns.db.crit and damage * CritMultiplier(lastSpell, school) or nil) end
   end
   ns.Status("bar", "health secret " .. Safe(issecretvalue and issecretvalue(UnitHealthMax("target")))
     .. ", frame " .. (bars[1] and Safe(GetOverlay(bars[1]).tex:IsVisible()) or "none")
     .. ", plate " .. (plateBar and Safe(GetOverlay(plateBar).tex:IsVisible()) or "none"))
 end
 
--- open the color picker for a free bar color; "frames" or "plates"
+-- open the color picker for a free bar color; "frames", "plates", "critframes", or "critplates"
 local function PickColor(kind)
-  local unit = kind == "plates" and "nameplate" or "target"
-  local colorKey, customKey = ColorKeys(unit)
-  local r, g, b = ColorOf(unit)
+  local crit = kind:sub(1, 4) == "crit"
+  local unit = kind:find("plates", 1, true) and "nameplate" or "target"
+  local colorKey, customKey = ColorKeys(unit, crit)
+  local r, g, b = ColorOf(unit, crit)
   local previous = { r, g, b }
   ColorPickerFrame:SetupColorPickerAndShow({
     r = r, g = g, b = b, hasOpacity = false,
@@ -413,6 +521,16 @@ end
 events.UNIT_HEALTH = OnHealth
 events.UNIT_MAXHEALTH = OnHealth
 
+-- talents changed: read them again on the next crit estimate
+local function OnTalents()
+  talentRanks = nil
+  if ns.db ~= nil then Refresh() end
+end
+events.PLAYER_TALENT_UPDATE = OnTalents
+events.CHARACTER_POINTS_CHANGED = OnTalents
+events.ACTIVE_TALENT_GROUP_CHANGED = OnTalents
+events.TRAIT_CONFIG_UPDATED = OnTalents
+
 -- spell text arrived after a request
 function events.SPELL_DATA_LOAD_RESULT()
   if ns.db ~= nil and ns.db.enabled then Refresh() end
@@ -421,7 +539,8 @@ end
 -- one frame dispatching all events above
 local frame = CreateFrame("Frame")
 for event in pairs(events) do
-  frame:RegisterEvent(event)
+  -- some talent events do not exist on every client
+  pcall(frame.RegisterEvent, frame, event)
 end
 frame:SetScript("OnEvent", function(_, event, ...)
   events[event](...)
@@ -476,21 +595,29 @@ local function OpacityBox()
 end
 
 -- saved state; settings page once loaded
-ns.Store("EstiDmgDB", { enabled = true, nameplates = true, frames = true, own = true, color = "darkred", custom = { 0.6, 0.05, 0.05 },
-  plateColor = "darkred", plateCustom = { 0.6, 0.05, 0.05 }, opacity = 85 }, function(db)
+ns.Store("EstiDmgDB", {
+  enabled = true, nameplates = true, frames = true, own = true, crit = false, opacity = 85,
+  color = "darkred", custom = { 0.6, 0.05, 0.05 },
+  plateColor = "darkred", plateCustom = { 0.6, 0.05, 0.05 },
+  critColor = "orange", critCustom = { 1, 0.5, 0.1 },
+  plateCritColor = "orange", plateCritCustom = { 1, 0.5, 0.1 },
+}, function(db)
   -- opacity is a percent now; older versions saved a fraction
   if db.opacity <= 1 then db.opacity = math.floor(db.opacity * 100 + 0.5) end
   ns.Settings()
   ns.Checkbox("enabled", "Enabled", "Mark estimated damage on enemy health bars", Refresh)
   ns.Checkbox("nameplates", "Nameplates", "Mark the damage on enemy nameplates", Refresh)
   ns.Checkbox("frames", "Target and focus", "Mark the damage on the target and focus frames", Refresh)
+  ns.Checkbox("own", "Own casts", "Show the damage of your own cast on your target", Refresh)
+  ns.Checkbox("crit", "Crit extension", "Add a bar part for a possible crit of your own cast, with your crit damage talents", Refresh)
   local choices = {}
   for i, c in ipairs(COLORS) do choices[i] = { c[1], c[2] } end
   choices[#choices + 1] = { "custom", "Custom..." }
   ns.Dropdown("color", "Unit frame color", choices, "Bar color on target and focus frames; Custom opens the color picker", OnColor("frames"))
   ns.Dropdown("plateColor", "Nameplate color", choices, "Bar color on nameplates; Custom opens the color picker", OnColor("plates"))
+  ns.Dropdown("critColor", "Unit frame crit color", choices, "Crit extension color on target and focus frames", OnColor("critframes"))
+  ns.Dropdown("plateCritColor", "Nameplate crit color", choices, "Crit extension color on nameplates", OnColor("critplates"))
   ns.Slider("opacity", "Bar opacity (%)", 20, 100, 5, "How solid the damage bar is", Refresh)
-  ns.Checkbox("own", "Own casts", "Show the damage of your own cast on your target", Refresh)
   OpacityBox()
 end)
 
@@ -501,7 +628,7 @@ ns.Command({ name = "debug", help = "show why no estimate appears", run = Debug 
 ns.Command({
   name = "color",
   help = "pick a free bar color",
-  args = { { name = "where", choices = { "frames", "plates" } } },
+  args = { { name = "where", choices = { "frames", "plates", "critframes", "critplates" } } },
   run = function(args) PickColor(args.where:lower()) end,
 })
 ns.Command({
