@@ -298,12 +298,20 @@ local function Debug()
   if not lastSpell then return end
   local damage = Estimate(lastSpell)
   ns.Status("spell", lastSpell .. ", estimate " .. tostring(damage))
-  -- draw the bar now and report whether it is shown
-  if damage and bars[1] then
-    DrawBar(bars[1], "target", damage)
-    ns.Status("bar", "health secret " .. Safe(issecretvalue and issecretvalue(UnitHealthMax("target")))
-      .. ", shown " .. Safe(GetOverlay(bars[1]).tex:IsVisible()))
+  if not damage then
+    -- no number found: show the start of the description
+    local desc = C_Spell.GetSpellDescription(lastSpell)
+    ns.Status("text", desc and desc:sub(1, 90):gsub("|", "||") or "nil")
+    return
   end
+  -- draw on the target frame and the plate now and report whether they are shown
+  local plateBar = plate and PlateBar(plate)
+  for _, bar in ipairs({ bars[1] or false, plateBar or false }) do
+    if bar then DrawBar(bar, "target", damage) end
+  end
+  ns.Status("bar", "health secret " .. Safe(issecretvalue and issecretvalue(UnitHealthMax("target")))
+    .. ", frame " .. (bars[1] and Safe(GetOverlay(bars[1]).tex:IsVisible()) or "none")
+    .. ", plate " .. (plateBar and Safe(GetOverlay(plateBar).tex:IsVisible()) or "none"))
 end
 
 -- open the color picker for a free bar color
