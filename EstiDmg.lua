@@ -229,7 +229,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
 end)
 
 -- saved state; settings page once loaded
-ns.Store("EstiDmgDB", { enabled = false, nameplates = true, frames = true, bars = true, own = true }, function()
+ns.Store("EstiDmgDB", { enabled = true, nameplates = true, frames = true, bars = true, own = true }, function()
   ns.Settings()
   ns.Checkbox("enabled", "Enabled", "Show estimated damage on enemy frames", Refresh)
   ns.Checkbox("nameplates", "Nameplates", "Show the estimate on enemy nameplates", Refresh)
