@@ -10,6 +10,8 @@ local WORDS = { "damage", "schaden", "dégâts", "daño", "dano" }
 local texts = {}
 -- bar overlay per health bar
 local overlays = {}
+-- last player cast ID and player cast events seen, for the debug command
+local lastSpell, castEvents = nil, 0
 -- units currently showing an estimate, by unit token
 local showing = {}
 
@@ -124,6 +126,7 @@ local function CastSpellID(unit)
   local spellID = select(9, UnitCastingInfo(unit))
   if not spellID then spellID = select(8, UnitChannelInfo(unit)) end
   if not spellID or (issecretvalue and issecretvalue(spellID)) then return nil end
+  if unit == "player" then lastSpell = spellID end
   return spellID
 end
 
@@ -181,12 +184,33 @@ local function Switch(enabled)
   Status()
 end
 
+-- print every step of the pipeline for the target and the last own cast
+local function Debug()
+  local host, bar = GetHost("target")
+  ns.Status("enabled", tostring(ns.db.enabled))
+  ns.Status("own cast events", castEvents)
+  ns.Status("target hostile", tostring(UnitCanAttack("player", "target")))
+  ns.Status("target host frame", host and (host:GetName() or "unnamed") or "none")
+  ns.Status("health bar", bar and (bar:GetName() or "unnamed") or "none")
+  ns.Status("last own spell", tostring(lastSpell))
+  if lastSpell then
+    local desc = C_Spell.GetSpellDescription(lastSpell)
+    ns.Status("description", desc and desc:sub(1, 160):gsub("|", "||") or "nil")
+    ns.Status("estimate", tostring(Estimate(lastSpell)))
+  end
+end
+
 -- event handlers by event name
 local events = {}
 
 -- cast state changed: the player's casts affect the target, others only their unit
 local function OnCast(unit)
-  if unit == "player" then Refresh() else Update(unit) end
+  if unit == "player" then
+    castEvents = castEvents + 1
+    Refresh()
+  else
+    Update(unit)
+  end
 end
 for _, event in ipairs({
   "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED",
@@ -241,5 +265,6 @@ end)
 -- chat commands
 ns.Command({ name = "on", help = "turn the estimates on", run = function() Switch(true) end })
 ns.Command({ name = "off", help = "turn the estimates off", run = function() Switch(false) end })
+ns.Command({ name = "debug", help = "show why no estimate appears", run = Debug })
 ns.Command({ name = "config", help = "open the settings page", run = ns.OpenSettings })
 ns.Slash({ "/estidmg", "/edmg" }, Status)
