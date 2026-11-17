@@ -1,11 +1,12 @@
 ## Interface: 16001, 120105
 ## Title: EstiDmg
-## Notes: Shows the estimated damage of enemy casts on nameplates and the target and focus frames.
+## Notes: Marks the estimated damage of casts on enemy health bars.
 ## Author: tf4482
 ## Version: @project-version@
 ## IconTexture: Interface/Icons/Spell_Fire_Fireball02
 ## SavedVariables: EstiDmgDB
 
+Locale.lua
 Output.lua
 Store.lua
 Settings.lua

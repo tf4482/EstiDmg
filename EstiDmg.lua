@@ -1,6 +1,7 @@
 -- EstiDmg: marks the estimated damage of casts, and optionally a crit extension, on enemy health bars
 
 local _, ns = ...
+local L = ns.L
 
 -- estimate cache by spell ID; false means no damage number found
 local estimates = {}
@@ -12,12 +13,12 @@ local overlays = {}
 local lastSpell, castEvents = nil, 0
 -- selectable bar colors: value, label, red, green, blue
 local COLORS = {
-  { "darkred", "Dark red", 0.6, 0.05, 0.05 },
-  { "red", "Red", 1, 0.1, 0.1 },
-  { "orange", "Orange", 1, 0.5, 0.1 },
-  { "purple", "Purple", 0.6, 0.2, 0.8 },
-  { "blue", "Blue", 0.2, 0.4, 1 },
-  { "black", "Black", 0, 0, 0 },
+  { "darkred", L["Dark red"], 0.6, 0.05, 0.05 },
+  { "red", L["Red"], 1, 0.1, 0.1 },
+  { "orange", L["Orange"], 1, 0.5, 0.1 },
+  { "purple", L["Purple"], 0.6, 0.2, 0.8 },
+  { "blue", L["Blue"], 0.2, 0.4, 1 },
+  { "black", L["Black"], 0, 0, 0 },
 }
 -- unit tokens of the visible nameplates, kept from the plate events
 local plateUnits = {}
@@ -28,12 +29,12 @@ local showing = {}
 local SCHOOL_MASKS = { 2, 4, 8, 16, 32, 64 }
 -- localized school names by mask, built on first use
 local schoolNames
--- talents that raise the spell crit damage bonus: English name, class, schools or spell names
+-- talents that raise the spell crit damage bonus: English name, spell ID of the talent, class, schools or spell IDs
 local CRIT_TALENTS = {
-  { name = "Elemental Fury", class = "SHAMAN", schools = { 4, 8, 16 } },
-  { name = "Ice Shards", class = "MAGE", schools = { 16 } },
-  { name = "Ruin", class = "WARLOCK", schools = { 4, 32 } },
-  { name = "Vengeance", class = "DRUID", spells = { "Wrath", "Starfire", "Moonfire" } },
+  { name = "Elemental Fury", id = 16089, class = "SHAMAN", schools = { 4, 8, 16 } },
+  { name = "Ice Shards", id = 11207, class = "MAGE", schools = { 16 } },
+  { name = "Ruin", id = 17959, class = "WARLOCK", schools = { 4, 32 } },
+  { name = "Vengeance", id = 16909, class = "DRUID", spellIDs = { 5176, 2912, 8921 } },
 }
 -- talent ranks as fraction of the maximum, by talent name; nil until read
 local talentRanks
@@ -110,6 +111,12 @@ local function ReadTalents()
   end)
 end
 
+-- localized spell name from a spell ID, nil when unknown
+local function NameOf(id)
+  local info = C_Spell.GetSpellInfo(id)
+  return info and info.name
+end
+
 -- spell crit multiplier of the player: base 1.5, matching talents add to the crit bonus
 local function CritMultiplier(spellID, school)
   if not talentRanks then ReadTalents() end
@@ -118,14 +125,16 @@ local function CritMultiplier(spellID, school)
   local spellName = info and info.name
   local extra = 0
   for _, talent in ipairs(CRIT_TALENTS) do
-    local fraction = talent.class == class and talentRanks[talent.name]
+    -- the talent is found by its English name or by the localized name of its spell
+    local fraction = talent.class == class
+      and (talentRanks[talent.name] or (talent.id and talentRanks[NameOf(talent.id) or ""]))
     if fraction and fraction > 0 then
       local applies = false
       for _, mask in ipairs(talent.schools or {}) do
         if mask == school then applies = true end
       end
-      for _, name in ipairs(talent.spells or {}) do
-        if name == spellName then applies = true end
+      for _, id in ipairs(talent.spellIDs or {}) do
+        if spellName and spellName == NameOf(id) then applies = true end
       end
       if applies then extra = extra + fraction end
     end
@@ -400,7 +409,7 @@ end
 local function Status()
   local hint = ""
   if not ns.db.enabled then
-    hint = " (turn on with " .. ns.Color("command", ns.slash .. " on") .. ")"
+    hint = " " .. L["(turn on with %s)"]:format(ns.Color("command", ns.slash .. " on"))
   end
   ns.Print(ns.OnOff(ns.db.enabled) .. hint)
 end
@@ -605,19 +614,19 @@ ns.Store("EstiDmgDB", {
   -- opacity is a percent now; older versions saved a fraction
   if db.opacity <= 1 then db.opacity = math.floor(db.opacity * 100 + 0.5) end
   ns.Settings()
-  ns.Checkbox("enabled", "Enabled", "Mark estimated damage on enemy health bars", Refresh)
-  ns.Checkbox("nameplates", "Nameplates", "Mark the damage on enemy nameplates", Refresh)
-  ns.Checkbox("frames", "Target and focus", "Mark the damage on the target and focus frames", Refresh)
-  ns.Checkbox("own", "Own casts", "Show the damage of your own cast on your target", Refresh)
-  ns.Checkbox("crit", "Crit extension", "Add a bar part for a possible crit of your own cast, with your crit damage talents", Refresh)
+  ns.Checkbox("enabled", L["Enabled"], L["Mark estimated damage on enemy health bars"], Refresh)
+  ns.Checkbox("nameplates", L["Nameplates"], L["Mark the damage on enemy nameplates"], Refresh)
+  ns.Checkbox("frames", L["Target and focus"], L["Mark the damage on the target and focus frames"], Refresh)
+  ns.Checkbox("own", L["Own casts"], L["Show the damage of your own cast on your target"], Refresh)
+  ns.Checkbox("crit", L["Crit extension"], L["Add a bar part for a possible crit of your own cast, with your crit damage talents"], Refresh)
   local choices = {}
   for i, c in ipairs(COLORS) do choices[i] = { c[1], c[2] } end
-  choices[#choices + 1] = { "custom", "Custom..." }
-  ns.Dropdown("color", "Unit frame color", choices, "Bar color on target and focus frames; Custom opens the color picker", OnColor("frames"))
-  ns.Dropdown("plateColor", "Nameplate color", choices, "Bar color on nameplates; Custom opens the color picker", OnColor("plates"))
-  ns.Dropdown("critColor", "Unit frame crit color", choices, "Crit extension color on target and focus frames", OnColor("critframes"))
-  ns.Dropdown("plateCritColor", "Nameplate crit color", choices, "Crit extension color on nameplates", OnColor("critplates"))
-  ns.Slider("opacity", "Bar opacity (%)", 20, 100, 5, "How solid the damage bar is", Refresh)
+  choices[#choices + 1] = { "custom", L["Custom..."] }
+  ns.Dropdown("color", L["Unit frame color"], choices, L["Bar color on target and focus frames; Custom opens the color picker"], OnColor("frames"))
+  ns.Dropdown("plateColor", L["Nameplate color"], choices, L["Bar color on nameplates; Custom opens the color picker"], OnColor("plates"))
+  ns.Dropdown("critColor", L["Unit frame crit color"], choices, L["Crit extension color on target and focus frames"], OnColor("critframes"))
+  ns.Dropdown("plateCritColor", L["Nameplate crit color"], choices, L["Crit extension color on nameplates"], OnColor("critplates"))
+  ns.Slider("opacity", L["Bar opacity (%)"], 20, 100, 5, L["How solid the damage bar is"], Refresh)
   OpacityBox()
 end)
 
@@ -635,7 +644,7 @@ ns.Command({
   name = "opacity",
   help = "set the bar opacity in percent",
   args = { { name = "percent", type = "number", min = 20, max = 100 } },
-  run = function(args) ns.Print("opacity " .. ns.Color("value", SetOpacity(args.percent) .. "%")) end,
+  run = function(args) ns.Print(L["opacity %s"]:format(ns.Color("value", SetOpacity(args.percent) .. "%"))) end,
 })
 ns.Command({ name = "config", help = "open the settings page", run = ns.OpenSettings })
 ns.Slash({ "/estidmg", "/edmg", "/esd" }, Status)
