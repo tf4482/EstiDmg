@@ -10,14 +10,10 @@ local WORDS = { "damage", "schaden", "dégâts", "daño", "dano" }
 local overlays = {}
 -- last player cast ID and player cast events seen, for the debug command
 local lastSpell, castEvents = nil, 0
--- selectable bar colors: value, label, red, green, blue
-local COLORS = {
-  { "darkred", "Dark red", 0.6, 0.05, 0.05 },
-  { "red", "Red", 1, 0.1, 0.1 },
-  { "orange", "Orange", 1, 0.5, 0.1 },
-  { "purple", "Purple", 0.6, 0.2, 0.8 },
-  { "blue", "Blue", 0.2, 0.4, 1 },
-  { "black", "Black", 0, 0, 0 },
+-- old preset colors, only used to migrate saved settings
+local PRESETS = {
+  darkred = { 0.6, 0.05, 0.05 }, red = { 1, 0.1, 0.1 }, orange = { 1, 0.5, 0.1 },
+  purple = { 0.6, 0.2, 0.8 }, blue = { 0.2, 0.4, 1 }, black = { 0, 0, 0 },
 }
 -- unit tokens of the visible nameplates, kept from the plate events
 local plateUnits = {}
@@ -192,20 +188,14 @@ local function GetOverlay(bar)
   return o
 end
 
--- settings keys of the color and custom color: unit frames or nameplates
-local function ColorKeys(unit)
-  if unit == "target" or unit == "focus" then return "color", "custom" end
-  return "plateColor", "plateCustom"
+-- settings key of the bar color: unit frames or nameplates
+local function ColorKey(unit)
+  return (unit == "target" or unit == "focus") and "frameRgb" or "plateRgb"
 end
 
 -- red, green, blue of the chosen bar color for a unit
 local function ColorOf(unit)
-  local colorKey, customKey = ColorKeys(unit)
-  if ns.db[colorKey] == "custom" then return unpack(ns.db[customKey]) end
-  for _, c in ipairs(COLORS) do
-    if c[1] == ns.db[colorKey] then return c[3], c[4], c[5] end
-  end
-  return 0.6, 0.05, 0.05
+  return unpack(ns.db[ColorKey(unit)])
 end
 
 -- bar color and opacity from the settings
@@ -338,33 +328,77 @@ local function Debug()
     .. ", plate " .. (plateBar and Safe(GetOverlay(plateBar).tex:IsVisible()) or "none"))
 end
 
--- open the color picker for a free bar color; "frames" or "plates"
+-- color swatches on the colors page
+local swatches = {}
+
+-- repaint the swatches from the saved colors
+local function RefreshSwatches()
+  for _, swatch in ipairs(swatches) do
+    swatch.tex:SetColorTexture(unpack(ns.db[swatch.key]))
+  end
+end
+
+-- open the color picker for a free bar color; kind is "frames" or "plates"
 local function PickColor(kind)
-  local unit = kind == "plates" and "nameplate" or "target"
-  local colorKey, customKey = ColorKeys(unit)
-  local r, g, b = ColorOf(unit)
+  local key = ColorKey(kind == "plates" and "nameplate" or "target")
+  local r, g, b = unpack(ns.db[key])
   local previous = { r, g, b }
   ColorPickerFrame:SetupColorPickerAndShow({
     r = r, g = g, b = b, hasOpacity = false,
     -- live update while the color changes
     swatchFunc = function()
-      ns.db[colorKey] = "custom"
-      ns.db[customKey] = { ColorPickerFrame:GetColorRGB() }
+      ns.db[key] = { ColorPickerFrame:GetColorRGB() }
+      RefreshSwatches()
       Refresh()
     end,
     -- keep the old color on cancel
     cancelFunc = function()
-      ns.db[customKey] = previous
+      ns.db[key] = previous
+      RefreshSwatches()
       Refresh()
     end,
   })
 end
 
--- color dropdown handler for a kind: "custom" opens the picker
-local function OnColor(kind)
-  return function(value)
-    if value == "custom" then PickColor(kind) end
-    Refresh()
+-- sub page of the settings with one clickable color swatch per bar kind
+local function BuildColorPage(parent)
+  local page = CreateFrame("Frame")
+  local rows = {
+    { "frameRgb", "frames", "Unit frame color" },
+    { "plateRgb", "plates", "Nameplate color" },
+  }
+  for i, row in ipairs(rows) do
+    local label = page:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    label:SetPoint("TOPLEFT", 20, -20 - (i - 1) * 36)
+    label:SetText(row[3])
+    local button = CreateFrame("Button", nil, page)
+    button:SetSize(64, 24)
+    button:SetPoint("LEFT", label, "LEFT", 200, 0)
+    -- white frame around the color
+    local border = button:CreateTexture(nil, "BACKGROUND")
+    border:SetAllPoints()
+    border:SetColorTexture(1, 1, 1, 1)
+    local tex = button:CreateTexture(nil, "ARTWORK")
+    tex:SetPoint("TOPLEFT", 2, -2)
+    tex:SetPoint("BOTTOMRIGHT", -2, 2)
+    button:SetScript("OnClick", function() PickColor(row[2]) end)
+    swatches[#swatches + 1] = { key = row[1], tex = tex }
+  end
+  page:SetScript("OnShow", RefreshSwatches)
+  Settings.RegisterCanvasLayoutSubcategory(parent, page, "Colors")
+end
+
+-- turn saved preset names of older versions into colors
+local function MigrateColors(db)
+  for _, keys in ipairs({ { "color", "custom", "frameRgb" }, { "plateColor", "plateCustom", "plateRgb" } }) do
+    local old, custom, new = keys[1], keys[2], keys[3]
+    local value = db[old]
+    if type(value) == "string" then
+      local rgb = (value == "custom" and db[custom]) or PRESETS[value]
+      if rgb then db[new] = { unpack(rgb) } end
+    end
+    db[old] = nil
+    db[custom] = nil
   end
 end
 
@@ -427,20 +461,25 @@ frame:SetScript("OnEvent", function(_, event, ...)
   events[event](...)
 end)
 
+-- first category registered while the settings page is built: ours
+local category
+hooksecurefunc(Settings, "RegisterAddOnCategory", function(created)
+  category = category or created
+end)
+
 -- saved state; settings page once loaded
-ns.Store("EstiDmgDB", { enabled = true, nameplates = true, frames = true, own = true, color = "darkred", custom = { 0.6, 0.05, 0.05 },
-  plateColor = "darkred", plateCustom = { 0.6, 0.05, 0.05 }, opacity = 0.85 }, function()
+ns.Store("EstiDmgDB", {
+  enabled = true, nameplates = true, frames = true, own = true, opacity = 0.85,
+  frameRgb = { 0.6, 0.05, 0.05 }, plateRgb = { 0.6, 0.05, 0.05 },
+}, function(db)
+  MigrateColors(db)
   ns.Settings()
   ns.Checkbox("enabled", "Enabled", "Mark estimated damage on enemy health bars", Refresh)
   ns.Checkbox("nameplates", "Nameplates", "Mark the damage on enemy nameplates", Refresh)
   ns.Checkbox("frames", "Target and focus", "Mark the damage on the target and focus frames", Refresh)
-  local choices = {}
-  for i, c in ipairs(COLORS) do choices[i] = { c[1], c[2] } end
-  choices[#choices + 1] = { "custom", "Custom..." }
-  ns.Dropdown("color", "Unit frame color", choices, "Bar color on target and focus frames; Custom opens the color picker", OnColor("frames"))
-  ns.Dropdown("plateColor", "Nameplate color", choices, "Bar color on nameplates; Custom opens the color picker", OnColor("plates"))
   ns.Slider("opacity", "Bar opacity", 0.2, 1, 0.05, "How solid the damage bar is", Refresh)
   ns.Checkbox("own", "Own casts", "Show the damage of your own cast on your target", Refresh)
+  if category then BuildColorPage(category) end
 end)
 
 -- chat commands
