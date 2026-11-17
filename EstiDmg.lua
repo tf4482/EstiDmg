@@ -192,18 +192,25 @@ local function GetOverlay(bar)
   return o
 end
 
--- red, green, blue of the chosen bar color
-local function ColorOf()
-  if ns.db.color == "custom" then return unpack(ns.db.custom) end
+-- settings keys of the color and custom color: unit frames or nameplates
+local function ColorKeys(unit)
+  if unit == "target" or unit == "focus" then return "color", "custom" end
+  return "plateColor", "plateCustom"
+end
+
+-- red, green, blue of the chosen bar color for a unit
+local function ColorOf(unit)
+  local colorKey, customKey = ColorKeys(unit)
+  if ns.db[colorKey] == "custom" then return unpack(ns.db[customKey]) end
   for _, c in ipairs(COLORS) do
-    if c[1] == ns.db.color then return c[3], c[4], c[5] end
+    if c[1] == ns.db[colorKey] then return c[3], c[4], c[5] end
   end
   return 0.6, 0.05, 0.05
 end
 
 -- bar color and opacity from the settings
-local function ApplyColor(tex)
-  local r, g, b = ColorOf()
+local function ApplyColor(tex, unit)
+  local r, g, b = ColorOf(unit)
   tex:SetColorTexture(r, g, b, ns.db.opacity)
 end
 
@@ -232,7 +239,7 @@ local function DrawBar(bar, unit, damage)
   o.ov:SetWidth(bar:GetWidth())
   o.ov:SetMinMaxValues(0, UnitHealthMax(unit))
   o.ov:SetValue(damage)
-  ApplyColor(o.tex)
+  ApplyColor(o.tex, unit)
   o.tex:Show()
 end
 
@@ -331,30 +338,34 @@ local function Debug()
     .. ", plate " .. (plateBar and Safe(GetOverlay(plateBar).tex:IsVisible()) or "none"))
 end
 
--- open the color picker for a free bar color
-local function PickColor()
-  local r, g, b = ColorOf()
+-- open the color picker for a free bar color; "frames" or "plates"
+local function PickColor(kind)
+  local unit = kind == "plates" and "nameplate" or "target"
+  local colorKey, customKey = ColorKeys(unit)
+  local r, g, b = ColorOf(unit)
   local previous = { r, g, b }
   ColorPickerFrame:SetupColorPickerAndShow({
     r = r, g = g, b = b, hasOpacity = false,
     -- live update while the color changes
     swatchFunc = function()
-      ns.db.color = "custom"
-      ns.db.custom = { ColorPickerFrame:GetColorRGB() }
+      ns.db[colorKey] = "custom"
+      ns.db[customKey] = { ColorPickerFrame:GetColorRGB() }
       Refresh()
     end,
     -- keep the old color on cancel
     cancelFunc = function()
-      ns.db.custom = previous
+      ns.db[customKey] = previous
       Refresh()
     end,
   })
 end
 
--- color dropdown changed: "custom" opens the picker
-local function OnColor(value)
-  if value == "custom" then PickColor() end
-  Refresh()
+-- color dropdown handler for a kind: "custom" opens the picker
+local function OnColor(kind)
+  return function(value)
+    if value == "custom" then PickColor(kind) end
+    Refresh()
+  end
 end
 
 -- event handlers by event name
@@ -417,7 +428,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
 end)
 
 -- saved state; settings page once loaded
-ns.Store("EstiDmgDB", { enabled = true, nameplates = true, frames = true, own = true, color = "darkred", custom = { 0.6, 0.05, 0.05 }, opacity = 0.85 }, function()
+ns.Store("EstiDmgDB", { enabled = true, nameplates = true, frames = true, own = true, color = "darkred", custom = { 0.6, 0.05, 0.05 },
+  plateColor = "darkred", plateCustom = { 0.6, 0.05, 0.05 }, opacity = 0.85 }, function()
   ns.Settings()
   ns.Checkbox("enabled", "Enabled", "Mark estimated damage on enemy health bars", Refresh)
   ns.Checkbox("nameplates", "Nameplates", "Mark the damage on enemy nameplates", Refresh)
@@ -425,7 +437,8 @@ ns.Store("EstiDmgDB", { enabled = true, nameplates = true, frames = true, own = 
   local choices = {}
   for i, c in ipairs(COLORS) do choices[i] = { c[1], c[2] } end
   choices[#choices + 1] = { "custom", "Custom..." }
-  ns.Dropdown("color", "Bar color", choices, "Color of the damage bar; Custom opens the color picker", OnColor)
+  ns.Dropdown("color", "Unit frame color", choices, "Bar color on target and focus frames; Custom opens the color picker", OnColor("frames"))
+  ns.Dropdown("plateColor", "Nameplate color", choices, "Bar color on nameplates; Custom opens the color picker", OnColor("plates"))
   ns.Slider("opacity", "Bar opacity", 0.2, 1, 0.05, "How solid the damage bar is", Refresh)
   ns.Checkbox("own", "Own casts", "Show the damage of your own cast on your target", Refresh)
 end)
@@ -434,6 +447,11 @@ end)
 ns.Command({ name = "on", help = "turn the estimates on", run = function() Switch(true) end })
 ns.Command({ name = "off", help = "turn the estimates off", run = function() Switch(false) end })
 ns.Command({ name = "debug", help = "show why no estimate appears", run = Debug })
-ns.Command({ name = "color", help = "pick a free bar color", run = PickColor })
+ns.Command({
+  name = "color",
+  help = "pick a free bar color",
+  args = { { name = "where", choices = { "frames", "plates" } } },
+  run = function(args) PickColor(args.where:lower()) end,
+})
 ns.Command({ name = "config", help = "open the settings page", run = ns.OpenSettings })
 ns.Slash({ "/estidmg", "/edmg", "/esd" }, Status)
