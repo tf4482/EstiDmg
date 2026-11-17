@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-11-17
+
+### Fixed
+
+- Lua error when the game hides the width of a health bar (secret value); the bar uses the last readable width instead.
+
+### Changed
+
+- Added the CurseForge project ID to the TOC for automatic uploads.
+
 ## [0.1.0] - 2026-11-17
 
 ### Added
