@@ -14,7 +14,29 @@ Marks the estimated damage of casts on enemy health bars, like Estimated Heals d
 - **Remembered** - settings are saved per account; default is on.
 - **Settings page** - all options in the game's settings and the addon compartment menu.
 
-Limits: the number is the first damage value in the spell's description, so it is a rough estimate. Spells without a damage number show nothing. Where the game hides enemy spell IDs, nothing is shown either. The crit part knows only the listed Classic-era talents, found by their English name, and assumes the base spell crit bonus of 50%.
+Limits: the bar uses the first damage value in the spell's description, so it is a rough estimate. Spells without a damage number show nothing. Where the game hides enemy spell IDs, nothing is shown either. The crit part knows only the listed Classic-era talents, found by their English name, and assumes the base spell crit bonus of 50%.
+
+## Screenshots
+
+Damage bar on a nameplate while casting:
+
+![Damage bar on a nameplate](docs/nameplate.png)
+
+Free bar color on a nameplate:
+
+![Nameplate with a custom bar color](docs/nameplate-custom-color.png)
+
+Crit extension in its own color in front of the damage bar:
+
+![Nameplate with the crit extension](docs/nameplate-crit.png)
+
+Settings page with the color picker:
+
+![Settings page and color picker](docs/settings.png)
+
+Target frame:
+
+![Target frame](docs/target-frame.png)
 
 ## Install
 
