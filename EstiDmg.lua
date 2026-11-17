@@ -185,12 +185,8 @@ local function GetOverlay(bar)
     local tex = bar:CreateTexture(nil, "ARTWORK", nil, 2)
     tex:SetPoint("TOPLEFT", ov:GetStatusBarTexture(), "TOPLEFT")
     tex:SetPoint("BOTTOMRIGHT", edge, "BOTTOMRIGHT")
-    -- same shape mask as the green fill, when the frame has one
-    local parent = bar:GetParent()
-    local mask = parent and parent.HealthBarMask
-    if mask then tex:AddMaskTexture(mask) end
     tex:Hide()
-    o = { ov = ov, tex = tex }
+    o = { ov = ov, tex = tex, masks = {} }
     overlays[bar] = o
   end
   return o
@@ -211,9 +207,28 @@ local function ApplyColor(tex)
   tex:SetColorTexture(r, g, b, ns.db.opacity)
 end
 
+-- copy the shape masks of the bar fill onto the damage texture, so it follows the bar frame
+local function SyncMasks(o, bar)
+  local fill = bar:GetStatusBarTexture()
+  local parent = bar:GetParent()
+  local list = {}
+  for i = 1, fill.GetNumMaskTextures and fill:GetNumMaskTextures() or 0 do
+    list[#list + 1] = fill:GetMaskTexture(i)
+  end
+  -- Blizzard frames keep their mask on the container
+  if #list == 0 and parent and parent.HealthBarMask then list[1] = parent.HealthBarMask end
+  for _, mask in ipairs(list) do
+    if not o.masks[mask] then
+      o.masks[mask] = true
+      o.tex:AddMaskTexture(mask)
+    end
+  end
+end
+
 -- mark the damage as the part of the bar that would be lost; works with secret health
 local function DrawBar(bar, unit, damage)
   local o = GetOverlay(bar)
+  SyncMasks(o, bar)
   o.ov:SetWidth(bar:GetWidth())
   o.ov:SetMinMaxValues(0, UnitHealthMax(unit))
   o.ov:SetValue(damage)
