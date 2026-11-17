@@ -319,4 +319,4 @@ ns.Command({ name = "off", help = "turn the estimates off", run = function() Swi
 ns.Command({ name = "debug", help = "show why no estimate appears", run = Debug })
 ns.Command({ name = "color", help = "pick a free bar color", run = PickColor })
 ns.Command({ name = "config", help = "open the settings page", run = ns.OpenSettings })
-ns.Slash({ "/estidmg", "/edmg" }, Status)
+ns.Slash({ "/estidmg", "/edmg", "/esd" }, Status)

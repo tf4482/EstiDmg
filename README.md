@@ -35,7 +35,7 @@ Limits: the number is the first damage value in the spell's description, so it i
 - Just play: it is on by default, so watch the bar on a caster's nameplate.
 - Only want the target frame: open `/estidmg config` and untick Nameplates.
 - See what your big spell will do: target an enemy and start casting, the bar shows the expected loss.
-- Quick switch off in a dungeon: `/edmg off`.
+- Quick switch off in a dungeon: `/esd off` (`/edmg` works too).
 
 ## Develop
 
