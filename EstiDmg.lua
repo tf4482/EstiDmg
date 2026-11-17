@@ -61,23 +61,110 @@ local function Estimate(spellID)
   return estimates[spellID] or nil
 end
 
--- host frame and health bar of a unit, nil when unavailable
-local function GetHost(unit)
+-- target and focus frame names of common unit frame addons
+local UNIT_FRAMES = {
+  target = { "TargetFrame", "ElvUF_Target", "SUFUnittarget", "PitBull4_Frames_Target", "XPerl_Target", "UUF_Target" },
+  focus = { "FocusFrame", "ElvUF_Focus", "SUFUnitfocus", "PitBull4_Frames_Focus", "XPerl_Focus", "UUF_Focus" },
+}
+-- bar found per frame
+local barCache = setmetatable({}, { __mode = "k" })
+-- name parts that mark a status bar as something other than health
+local NOT_HEALTH = { "power", "mana", "cast", "absorb", "shield", "prediction" }
+
+-- whether a value is a status bar
+local function IsBar(x)
+  return type(x) == "table" and x.GetObjectType ~= nil and x:GetObjectType() == "StatusBar"
+end
+
+-- health bar from the known field names of Blizzard, oUF, SUF, X-Perl, PitBull, and UUF frames
+local function KnownBar(frame)
+  local content = frame.TargetFrameContent
+  local main = content and content.TargetFrameContentMain
+  local container = (main and main.HealthBarsContainer) or frame.HealthBarsContainer
+  local stats = frame.statsFrame
+  local name = frame.GetName and frame:GetName()
+  for _, bar in ipairs({
+    container and container.HealthBar or false, container and container.healthBar or false,
+    main and main.HealthBar or false, frame.Health or false, frame.healthBar or false,
+    frame.HealthBar or false, frame.healthbar or false, stats and stats.healthBar or false,
+    frame.unitHealthBar or false, name and _G[name .. "HealthBar"] or false,
+  }) do
+    if IsBar(bar) then return bar end
+  end
+end
+
+-- last resort: the visible status bar below a frame that looks most like health
+local function ScanBar(root, skip)
+  local best, area = nil, 0
+  local function walk(f, depth)
+    if f == skip or depth > 4 or f:IsForbidden() then return end
+    if IsBar(f) and f:IsVisible() then
+      local name = (f:GetName() or ""):lower()
+      local w, h = f:GetWidth(), f:GetHeight()
+      local bad = issecretvalue and (issecretvalue(w) or issecretvalue(h))
+      for _, word in ipairs(NOT_HEALTH) do
+        if name:find(word, 1, true) then bad = true end
+      end
+      -- a bar named health wins, else the largest
+      local score = name:find("health", 1, true) and math.huge or (not bad and w * h or 0)
+      if not bad and score > area then best, area = f, score end
+    end
+    for _, child in ipairs({ f:GetChildren() }) do walk(child, depth + 1) end
+  end
+  walk(root, 0)
+  return best
+end
+
+-- health bar of one frame: known fields first, then a scan; cached when found
+local function BarOf(frame, skip)
+  local bar = barCache[frame] or KnownBar(frame)
+  if not bar then
+    local ok, found = pcall(ScanBar, frame, skip)
+    bar = ok and found or nil
+  end
+  barCache[frame] = bar
+  return bar
+end
+
+-- health bar on a nameplate: replacement addons first, the Blizzard bar only while it is shown
+local function PlateBar(plate)
+  local cached = barCache[plate]
+  if cached then return cached end
+  local tp = plate.TPFrame and plate.TPFrame.visual
+  local bar = (plate.unitFrame and KnownBar(plate.unitFrame))
+    or (tp and IsBar(tp.Healthbar) and tp.Healthbar)
+    or (plate.kui and IsBar(plate.kui.HealthBar) and plate.kui.HealthBar)
+  local blizzard = plate.UnitFrame
+  if not bar and blizzard and blizzard:IsVisible() and blizzard:GetAlpha() > 0 then
+    bar = KnownBar(blizzard)
+  end
+  if not bar then
+    local ok, found = pcall(ScanBar, plate, blizzard)
+    bar = ok and found or nil
+  end
+  barCache[plate] = bar
+  return bar
+end
+
+-- health bars of a unit: every visible unit frame for target and focus, the plate otherwise
+local function BarsFor(unit)
+  local bars = {}
   if unit == "target" or unit == "focus" then
-    local host = unit == "target" and TargetFrame or FocusFrame
-    if not host then return nil end
-    local content = host.TargetFrameContent
-    local main = content and content.TargetFrameContentMain
-    local container = main and main.HealthBarsContainer
-    local name = host:GetName()
-    -- Retail-like layout first, then older frame fields and global names
-    return host, (container and container.HealthBar) or (main and main.HealthBar)
-      or host.healthbar or host.healthBar or (name and _G[name .. "HealthBar"])
+    for _, name in ipairs(UNIT_FRAMES[unit]) do
+      local frame = _G[name]
+      if frame and frame:IsVisible() then
+        local bar = BarOf(frame)
+        if bar then bars[#bars + 1] = bar end
+      end
+    end
+    return bars
   end
   local plate = C_NamePlate.GetNamePlateForUnit(unit)
-  if not plate or plate:IsForbidden() then return nil end
-  local uf = plate.UnitFrame
-  return plate, uf and uf.healthBar
+  if plate and not plate:IsForbidden() then
+    local bar = PlateBar(plate)
+    if bar then bars[1] = bar end
+  end
+  return bars
 end
 
 -- damage texture on a health bar, between the fill and the text, created on first use
@@ -160,15 +247,14 @@ local function Update(unit)
   if ns.db == nil or not unit then return end
   -- only target, focus, and nameplates; other tokens are not allowed
   if unit ~= "target" and unit ~= "focus" and unit:sub(1, 9) ~= "nameplate" then return end
-  local host, bar = GetHost(unit)
-  if not host or not bar then return end
-  GetOverlay(bar).tex:Hide()
+  local bars = BarsFor(unit)
+  for _, bar in ipairs(bars) do GetOverlay(bar).tex:Hide() end
   showing[unit] = nil
   if not (ns.db.enabled and Wanted(unit) and UnitCanAttack("player", unit)) then return end
   local damage = DamageFor(unit)
   if not damage then return end
   showing[unit] = true
-  DrawBar(bar, unit, damage)
+  for _, bar in ipairs(bars) do DrawBar(bar, unit, damage) end
 end
 
 -- update every visible unit
@@ -198,12 +284,19 @@ end
 
 -- print every step of the pipeline for the target and the last own cast
 local function Debug()
-  local host, bar = GetHost("target")
+  local bars = BarsFor("target")
+  local bar = bars[1]
   ns.Status("enabled", tostring(ns.db.enabled))
   ns.Status("own cast events", castEvents)
   ns.Status("target hostile", tostring(UnitCanAttack("player", "target")))
-  ns.Status("target host frame", host and (host:GetName() or "unnamed") or "none")
-  ns.Status("health bar", bar and (bar:GetName() or "unnamed") or "none")
+  ns.Status("target health bars", #bars)
+  for _, b in ipairs(bars) do
+    local parent = b:GetParent()
+    ns.Status("  bar / parent", (b:GetName() or "unnamed") .. " / " .. ((parent and parent:GetName()) or "unnamed"))
+  end
+  local plate = C_NamePlate.GetNamePlateForUnit("target")
+  local plateBar = plate and PlateBar(plate)
+  ns.Status("target plate bar", plateBar and (plateBar:GetName() or "unnamed") or "none")
   ns.Status("last own spell", tostring(lastSpell))
   if lastSpell then
     local desc = C_Spell.GetSpellDescription(lastSpell)
