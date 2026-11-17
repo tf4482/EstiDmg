@@ -7,12 +7,13 @@ Marks the estimated damage of casts on enemy health bars, like Estimated Heals d
 - **Damage bar** - a red part of the health bar shows the expected health loss while an enemy casts a damaging spell.
 - **Own casts** - your own cast shows its damage on your target.
 - **Nameplates, target, focus** - each can be switched off separately, as can own casts.
+- **Crit extension** - optional extra bar part in front of the damage bar for a possible crit of your own cast, including crit damage talents (Elemental Fury, Ice Shards, Ruin, Vengeance), in its own color.
 - **Bar colors** - pick a preset color, or optionally any color with the color picker, separately for unit frames and nameplates (dark red by default), and set how solid the bar is in percent, with a slider, a number box, or a command.
 - **Other UI addons** - tested with Platynator; it may work with other unit frame and nameplate addons.
 - **Remembered** - settings are saved per account; default is on.
 - **Settings page** - all options in the game's settings and the addon compartment menu.
 
-Limits: the number is the first damage value in the spell's description, so it is a rough estimate. Spells without a damage number show nothing. Where the game hides enemy spell IDs, nothing is shown either.
+Limits: the number is the first damage value in the spell's description, so it is a rough estimate. Spells without a damage number show nothing. Where the game hides enemy spell IDs, nothing is shown either. The crit part knows only the listed Classic-era talents, found by their English name, and assumes the base spell crit bonus of 50%.
 
 ## Install
 
@@ -29,6 +30,8 @@ Limits: the number is the first damage value in the spell's description, so it i
 /estidmg opacity 70    set the bar opacity in percent
 /estidmg color frames   pick a free color for unit frames
 /estidmg color plates   pick a free color for nameplates
+/estidmg color critframes   pick a free crit color for unit frames
+/estidmg color critplates   pick a free crit color for nameplates
 /estidmg config   open the settings page
 /estidmg help     list all commands
 ```
