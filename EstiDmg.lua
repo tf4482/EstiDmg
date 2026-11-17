@@ -334,17 +334,32 @@ local function HideOverlay(bar)
   o.critTex:Hide()
 end
 
+-- bar width for the helper bars; the game can hide it, then the last readable width is used
+local function BarWidth(o, bar)
+  local width = bar:GetWidth()
+  if issecretvalue and issecretvalue(width) then return o.width end
+  o.width = width
+  return width
+end
+
 -- mark the damage, and the crit extension when given, on the bar; works with secret health
 local function DrawBar(bar, unit, damage, crit)
   local o = GetOverlay(bar)
+  local width = BarWidth(o, bar)
+  -- without a known width the bar cannot be scaled
+  if not width then
+    o.tex:Hide()
+    o.critTex:Hide()
+    return
+  end
   SyncMasks(o, bar)
-  o.ov:SetWidth(bar:GetWidth())
+  o.ov:SetWidth(width)
   o.ov:SetMinMaxValues(0, UnitHealthMax(unit))
   o.ov:SetValue(damage)
   ApplyColor(o.tex, unit)
   o.tex:Show()
   if crit then
-    o.critOv:SetWidth(bar:GetWidth())
+    o.critOv:SetWidth(width)
     o.critOv:SetMinMaxValues(0, UnitHealthMax(unit))
     o.critOv:SetValue(crit)
     ApplyColor(o.critTex, unit, true)
