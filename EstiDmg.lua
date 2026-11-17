@@ -1,4 +1,4 @@
--- EstiDmg: shows estimated damage on enemy frames, as text and as a health bar overlay
+-- EstiDmg: marks the estimated damage of casts on enemy health bars
 
 local _, ns = ...
 
@@ -6,8 +6,6 @@ local _, ns = ...
 local estimates = {}
 -- damage words that must follow the number in the spell description
 local WORDS = { "damage", "schaden", "dégâts", "daño", "dano" }
--- text per host frame (nameplate, TargetFrame, FocusFrame)
-local texts = {}
 -- bar overlay per health bar
 local overlays = {}
 -- last player cast ID and player cast events seen, for the debug command
@@ -73,19 +71,6 @@ local function GetHost(unit)
   return plate, uf and uf.healthBar
 end
 
--- text on the host frame, created on first use
-local function GetText(host)
-  local fs = texts[host]
-  if not fs then
-    local layer = CreateFrame("Frame", nil, host)
-    layer:SetAllPoints(host)
-    fs = layer:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    fs:SetTextColor(1, 0.35, 0.2)
-    texts[host] = fs
-  end
-  return fs
-end
-
 -- overlay status bar on a health bar, created on first use
 local function GetOverlay(bar)
   local ov = overlays[bar]
@@ -143,25 +128,20 @@ local function DamageFor(unit)
   return spellID and Estimate(spellID)
 end
 
--- show or clear the estimate for one unit
+-- show or clear the damage bar for one unit
 local function Update(unit)
   if ns.db == nil or not unit then return end
   -- only target, focus, and nameplates; other tokens are not allowed
   if unit ~= "target" and unit ~= "focus" and unit:sub(1, 9) ~= "nameplate" then return end
   local host, bar = GetHost(unit)
-  if not host then return end
-  local fs = GetText(host)
-  fs:SetText("")
-  if bar then GetOverlay(bar):Hide() end
+  if not host or not bar then return end
+  GetOverlay(bar):Hide()
   showing[unit] = nil
   if not (ns.db.enabled and Wanted(unit) and UnitCanAttack("player", unit)) then return end
   local damage = DamageFor(unit)
   if not damage then return end
   showing[unit] = true
-  fs:ClearAllPoints()
-  fs:SetPoint("BOTTOM", host, "TOP", 0, (unit == "target" or unit == "focus") and 2 or 14)
-  fs:SetText("~" .. BreakUpLargeNumbers(math.floor(damage + 0.5)))
-  if bar and ns.db.bars then DrawBar(bar, unit, damage) end
+  DrawBar(bar, unit, damage)
 end
 
 -- update every visible unit
@@ -267,12 +247,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
 end)
 
 -- saved state; settings page once loaded
-ns.Store("EstiDmgDB", { enabled = true, nameplates = true, frames = true, bars = true, own = true }, function()
+ns.Store("EstiDmgDB", { enabled = true, nameplates = true, frames = true, own = true }, function()
   ns.Settings()
-  ns.Checkbox("enabled", "Enabled", "Show estimated damage on enemy frames", Refresh)
-  ns.Checkbox("nameplates", "Nameplates", "Show the estimate on enemy nameplates", Refresh)
-  ns.Checkbox("frames", "Target and focus", "Show the estimate on the target and focus frames", Refresh)
-  ns.Checkbox("bars", "Health bar overlay", "Mark the expected health loss on the health bar", Refresh)
+  ns.Checkbox("enabled", "Enabled", "Mark estimated damage on enemy health bars", Refresh)
+  ns.Checkbox("nameplates", "Nameplates", "Mark the damage on enemy nameplates", Refresh)
+  ns.Checkbox("frames", "Target and focus", "Mark the damage on the target and focus frames", Refresh)
   ns.Checkbox("own", "Own casts", "Show the damage of your own cast on your target", Refresh)
 end)
 

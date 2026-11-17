@@ -8,7 +8,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ### Added
 
-- Estimated damage text for enemy casts and channels on nameplates, target, and focus frames.
-- Health bar overlay marking the expected health loss.
+- Health bar overlay marking the expected damage of enemy casts and channels on nameplates, target, and focus frames.
 - Damage of the player's own casts on the target.
 - Settings page, addon compartment entry, and `/estidmg` command.
