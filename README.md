@@ -10,7 +10,7 @@ Marks the estimated damage of casts on enemy health bars, like Estimated Heals d
 - **Crit extension** - optional extra bar part in front of the damage bar for a possible crit of your own cast, including crit damage talents (Elemental Fury, Ice Shards, Ruin, Vengeance), in its own color.
 - **Bar colors** - pick a preset color, or optionally any color with the color picker, separately for unit frames and nameplates (dark red by default), and set how solid the bar is in percent, with a slider, a number box, or a command.
 - **Other UI addons** - tested with Platynator; it may work with other unit frame and nameplate addons.
-- **Localization** - English and German; the language follows the game client, anything but German shows English.
+- **Localization** - settings page and status messages in German on German clients, English everywhere else; slash commands stay English.
 - **Remembered** - settings are saved per account; default is on.
 - **Settings page** - all options in the game's settings and the addon compartment menu.
 
