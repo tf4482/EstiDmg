@@ -1,11 +1,13 @@
 # EstiDmg
 
-Shows the estimated damage of enemy casts and channels above nameplates and the target and focus frames, like Estimated Heals does for heals.
+Shows estimated damage on enemy nameplates and the target and focus frames, as a number and as a health bar overlay, like Estimated Heals does for heals.
 
 ## Features
 
 - **Estimated damage** - a number like `~12,345` while an enemy casts a damaging spell.
-- **Nameplates, target, focus** - each can be switched off separately.
+- **Own casts** - your own cast shows its damage on your target.
+- **Health bar overlay** - the expected health loss is marked on the enemy's health bar.
+- **Nameplates, target, focus** - each can be switched off separately, as can the bar and own casts.
 - **Remembered** - settings are saved per account; default is off.
 - **Settings page** - all options in the game's settings and the addon compartment menu.
 
@@ -31,6 +33,7 @@ Limits: the number is the first damage value in the spell's description, so it i
 
 - Turn it on once with `/estidmg on`, then watch the number above a caster's nameplate.
 - Only want the target frame: open `/estidmg config` and untick Nameplates.
+- See what your big spell will do: target an enemy and start casting, the bar shows the expected loss.
 - Quick switch off in a dungeon: `/edmg off`.
 
 ## Develop
