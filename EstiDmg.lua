@@ -282,6 +282,12 @@ local function Switch(enabled)
   Status()
 end
 
+-- printable text of a value, "secret" when the game hides it
+local function Safe(value)
+  if issecretvalue and issecretvalue(value) then return "secret" end
+  return tostring(value)
+end
+
 -- print every step of the pipeline for the target and the last own cast
 local function Debug()
   local bars = BarsFor("target")
@@ -308,8 +314,8 @@ local function Debug()
       DrawBar(bar, "target", damage)
       local o = GetOverlay(bar)
       ns.Status("health secret", tostring(issecretvalue and issecretvalue(UnitHealthMax("target"))))
-      ns.Status("bar width / visible", tostring(bar:GetWidth()) .. " / " .. tostring(bar:IsVisible()))
-      ns.Status("overlay width / shown", tostring(o.ov:GetWidth()) .. " / " .. tostring(o.tex:IsVisible()))
+      ns.Status("bar width / visible", Safe(bar:GetWidth()) .. " / " .. Safe(bar:IsVisible()))
+      ns.Status("overlay width / shown", Safe(o.ov:GetWidth()) .. " / " .. Safe(o.tex:IsVisible()))
     end
   end
 end
