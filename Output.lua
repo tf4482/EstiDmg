@@ -1,6 +1,7 @@
--- Shared component: colored chat output; copied unchanged from wow-lua-house-style
+-- Shared component: colored chat output; from wow-lua-house-style, on/off text through ns.L
 
 local ADDON, ns = ...
+local L = ns.L
 
 -- chat colors by meaning
 local COLORS = {
@@ -20,7 +21,7 @@ end
 
 -- colored on/off for a boolean state
 function ns.OnOff(enabled)
-  return enabled and ns.Color("success", "on") or ns.Color("muted", "off")
+  return enabled and ns.Color("success", L["on"]) or ns.Color("muted", L["off"])
 end
 
 -- one chat line behind the colored addon name
