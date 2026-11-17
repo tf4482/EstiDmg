@@ -288,35 +288,21 @@ local function Safe(value)
   return tostring(value)
 end
 
--- print every step of the pipeline for the target and the last own cast
+-- print the state of the pipeline in a few short lines
 local function Debug()
   local bars = BarsFor("target")
-  local bar = bars[1]
-  ns.Status("enabled", tostring(ns.db.enabled))
-  ns.Status("own cast events", castEvents)
-  ns.Status("target hostile", tostring(UnitCanAttack("player", "target")))
-  ns.Status("target health bars", #bars)
-  for _, b in ipairs(bars) do
-    local parent = b:GetParent()
-    ns.Status("  bar / parent", (b:GetName() or "unnamed") .. " / " .. ((parent and parent:GetName()) or "unnamed"))
-  end
   local plate = C_NamePlate.GetNamePlateForUnit("target")
-  local plateBar = plate and PlateBar(plate)
-  ns.Status("target plate bar", plateBar and (plateBar:GetName() or "unnamed") or "none")
-  ns.Status("last own spell", tostring(lastSpell))
-  if lastSpell then
-    local desc = C_Spell.GetSpellDescription(lastSpell)
-    ns.Status("description", desc and desc:sub(1, 160):gsub("|", "||") or "nil")
-    local damage = Estimate(lastSpell)
-    ns.Status("estimate", tostring(damage))
-    -- draw the bar now and report its state
-    if damage and bar then
-      DrawBar(bar, "target", damage)
-      local o = GetOverlay(bar)
-      ns.Status("health secret", tostring(issecretvalue and issecretvalue(UnitHealthMax("target"))))
-      ns.Status("bar width / visible", Safe(bar:GetWidth()) .. " / " .. Safe(bar:IsVisible()))
-      ns.Status("overlay width / shown", Safe(o.ov:GetWidth()) .. " / " .. Safe(o.tex:IsVisible()))
-    end
+  ns.Status("state", "enabled " .. tostring(ns.db.enabled) .. ", casts " .. castEvents
+    .. ", hostile " .. tostring(UnitCanAttack("player", "target")))
+  ns.Status("bars", #bars .. " on target frame, " .. ((plate and PlateBar(plate)) and "1" or "0") .. " on plate")
+  if not lastSpell then return end
+  local damage = Estimate(lastSpell)
+  ns.Status("spell", lastSpell .. ", estimate " .. tostring(damage))
+  -- draw the bar now and report whether it is shown
+  if damage and bars[1] then
+    DrawBar(bars[1], "target", damage)
+    ns.Status("bar", "health secret " .. Safe(issecretvalue and issecretvalue(UnitHealthMax("target")))
+      .. ", shown " .. Safe(GetOverlay(bars[1]).tex:IsVisible()))
   end
 end
 
