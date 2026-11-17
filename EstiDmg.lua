@@ -10,6 +10,15 @@ local WORDS = { "damage", "schaden", "dégâts", "daño", "dano" }
 local overlays = {}
 -- last player cast ID and player cast events seen, for the debug command
 local lastSpell, castEvents = nil, 0
+-- selectable bar colors: value, label, red, green, blue
+local COLORS = {
+  { "darkred", "Dark red", 0.6, 0.05, 0.05 },
+  { "red", "Red", 1, 0.1, 0.1 },
+  { "orange", "Orange", 1, 0.5, 0.1 },
+  { "purple", "Purple", 0.6, 0.2, 0.8 },
+  { "blue", "Blue", 0.2, 0.4, 1 },
+  { "black", "Black", 0, 0, 0 },
+}
 -- units currently showing an estimate, by unit token
 local showing = {}
 
@@ -85,7 +94,6 @@ local function GetOverlay(bar)
     ov:SetPoint("BOTTOMRIGHT", edge, "BOTTOMRIGHT")
     -- visible texture on the bar itself, stretched between the helper fill and the health edge
     local tex = bar:CreateTexture(nil, "ARTWORK", nil, 2)
-    tex:SetColorTexture(1, 0.1, 0.1, 0.85)
     tex:SetPoint("TOPLEFT", ov:GetStatusBarTexture(), "TOPLEFT")
     tex:SetPoint("BOTTOMRIGHT", edge, "BOTTOMRIGHT")
     -- same shape mask as the green fill, when the frame has one
@@ -99,12 +107,22 @@ local function GetOverlay(bar)
   return o
 end
 
+-- bar color and opacity from the settings
+local function ApplyColor(tex)
+  local r, g, b = 0.6, 0.05, 0.05
+  for _, c in ipairs(COLORS) do
+    if c[1] == ns.db.color then r, g, b = c[3], c[4], c[5] end
+  end
+  tex:SetColorTexture(r, g, b, ns.db.opacity)
+end
+
 -- mark the damage as the part of the bar that would be lost; works with secret health
 local function DrawBar(bar, unit, damage)
   local o = GetOverlay(bar)
   o.ov:SetWidth(bar:GetWidth())
   o.ov:SetMinMaxValues(0, UnitHealthMax(unit))
   o.ov:SetValue(damage)
+  ApplyColor(o.tex)
   o.tex:Show()
 end
 
@@ -250,11 +268,15 @@ frame:SetScript("OnEvent", function(_, event, ...)
 end)
 
 -- saved state; settings page once loaded
-ns.Store("EstiDmgDB", { enabled = true, nameplates = true, frames = true, own = true }, function()
+ns.Store("EstiDmgDB", { enabled = true, nameplates = true, frames = true, own = true, color = "darkred", opacity = 0.85 }, function()
   ns.Settings()
   ns.Checkbox("enabled", "Enabled", "Mark estimated damage on enemy health bars", Refresh)
   ns.Checkbox("nameplates", "Nameplates", "Mark the damage on enemy nameplates", Refresh)
   ns.Checkbox("frames", "Target and focus", "Mark the damage on the target and focus frames", Refresh)
+  local choices = {}
+  for i, c in ipairs(COLORS) do choices[i] = { c[1], c[2] } end
+  ns.Dropdown("color", "Bar color", choices, "Color of the damage bar", Refresh)
+  ns.Slider("opacity", "Bar opacity", 0.2, 1, 0.05, "How solid the damage bar is", Refresh)
   ns.Checkbox("own", "Own casts", "Show the damage of your own cast on your target", Refresh)
 end)
 
