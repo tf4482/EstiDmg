@@ -7,7 +7,7 @@ Marks the estimated damage of casts on enemy health bars, like Estimated Heals d
 - **Damage bar** - a red part of the health bar shows the expected health loss while an enemy casts a damaging spell.
 - **Own casts** - your own cast shows its damage on your target.
 - **Nameplates, target, focus** - each can be switched off separately, as can own casts.
-- **Bar color and opacity** - pick a color (dark red by default) and how solid the bar is.
+- **Bar color and opacity** - pick a preset or any color with the color picker (dark red by default) and set how solid the bar is.
 - **Remembered** - settings are saved per account; default is on.
 - **Settings page** - all options in the game's settings and the addon compartment menu.
 
@@ -25,6 +25,7 @@ Limits: the number is the first damage value in the spell's description, so it i
 /estidmg          show the current state
 /estidmg on       turn the estimates on
 /estidmg off      turn the estimates off
+/estidmg color    pick a free bar color
 /estidmg config   open the settings page
 /estidmg help     list all commands
 ```
