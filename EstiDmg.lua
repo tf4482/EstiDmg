@@ -201,7 +201,16 @@ local function Debug()
   if lastSpell then
     local desc = C_Spell.GetSpellDescription(lastSpell)
     ns.Status("description", desc and desc:sub(1, 160):gsub("|", "||") or "nil")
-    ns.Status("estimate", tostring(Estimate(lastSpell)))
+    local damage = Estimate(lastSpell)
+    ns.Status("estimate", tostring(damage))
+    -- draw the bar now and report its geometry
+    if damage and bar then
+      DrawBar(bar, "target", damage)
+      local tex = GetOverlay(bar)
+      ns.Status("health / max", tostring(UnitHealth("target")) .. " / " .. tostring(UnitHealthMax("target")))
+      ns.Status("bar width / visible", tostring(bar:GetWidth()) .. " / " .. tostring(bar:IsVisible()))
+      ns.Status("overlay width / shown", tostring(tex:GetWidth()) .. " / " .. tostring(tex:IsVisible()))
+    end
   end
 end
 
