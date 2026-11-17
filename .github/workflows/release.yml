@@ -22,5 +22,5 @@ jobs:
           fetch-depth: 0
       - uses: BigWigsMods/packager@v2
         with:
-          # zip name and upload label, both named after the package
-          args: -n "{package-name}-{project-version}{nolib}{classic}:{package-name}-{project-version}{classic}{nolib}"
+          # zip name and upload label, both like EstiDmg-v1.2.3.zip
+          args: -n "{package-name}-{project-version}{nolib}:{package-name}-{project-version}{nolib}.zip"
