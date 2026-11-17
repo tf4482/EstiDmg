@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] - 2026-11-17
+
+### Fixed
+
+- Stack overflow when the game answers a spell data request at once; each spell is requested only once.
+
+### Changed
+
+- Release zip and CurseForge upload are named `EstiDmg-vX.Y.Z.zip`, without the game suffix.
+
 ## [0.1.2] - 2026-11-17
 
 ### Changed
