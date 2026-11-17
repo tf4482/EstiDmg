@@ -1,7 +1,6 @@
 ## Interface: 16001, 120105
 ## Title: EstiDmg
 ## Notes: Marks the estimated damage of casts on enemy health bars.
-## Notes-deDE: Markiert den geschätzten Schaden von Zaubern auf den Lebensleisten von Gegnern.
 ## Author: tf4482
 ## Version: @project-version@
 ## IconTexture: Interface/Icons/Spell_Fire_Fireball02

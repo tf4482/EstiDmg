@@ -40,28 +40,11 @@ if GetLocale() == "deDE" then
     ["Blue"] = "Blau",
     ["Black"] = "Schwarz",
     ["Custom..."] = "Eigene...",
-    -- commands and chat lines
-    ["turn the estimates on"] = "Schätzungen einschalten",
-    ["turn the estimates off"] = "Schätzungen ausschalten",
-    ["show why no estimate appears"] = "zeigt, warum keine Schätzung erscheint",
-    ["pick a free bar color"] = "freie Balkenfarbe wählen",
-    ["set the bar opacity in percent"] = "Balken-Deckkraft in Prozent setzen",
-    ["open the settings page"] = "Einstellungsseite öffnen",
+    -- status messages
     ["(turn on with %s)"] = "(einschalten mit %s)",
     ["opacity %s"] = "Deckkraft %s",
     ["on"] = "an",
     ["off"] = "aus",
-    -- shared command texts
-    ["commands:"] = "Befehle:",
-    ["show this help"] = "diese Hilfe anzeigen",
-    [" from %s to %s"] = " von %s bis %s",
-    ["%s must be a number"] = "%s muss eine Zahl sein",
-    ["%s must be one of %s"] = "%s muss eines von %s sein",
-    ["unknown option --%s"] = "unbekannte Option --%s",
-    ["too many arguments"] = "zu viele Argumente",
-    ["missing %s"] = "%s fehlt",
-    ["%s - usage: %s"] = "%s - Aufruf: %s",
-    ["unknown command: %s - see %s help"] = "unbekannter Befehl: %s - siehe %s help",
   }
   for key, text in pairs(de) do
     L[key] = text

@@ -631,20 +631,20 @@ ns.Store("EstiDmgDB", {
 end)
 
 -- chat commands
-ns.Command({ name = "on", help = L["turn the estimates on"], run = function() Switch(true) end })
-ns.Command({ name = "off", help = L["turn the estimates off"], run = function() Switch(false) end })
-ns.Command({ name = "debug", help = L["show why no estimate appears"], run = Debug })
+ns.Command({ name = "on", help = "turn the estimates on", run = function() Switch(true) end })
+ns.Command({ name = "off", help = "turn the estimates off", run = function() Switch(false) end })
+ns.Command({ name = "debug", help = "show why no estimate appears", run = Debug })
 ns.Command({
   name = "color",
-  help = L["pick a free bar color"],
+  help = "pick a free bar color",
   args = { { name = "where", choices = { "frames", "plates", "critframes", "critplates" } } },
   run = function(args) PickColor(args.where:lower()) end,
 })
 ns.Command({
   name = "opacity",
-  help = L["set the bar opacity in percent"],
+  help = "set the bar opacity in percent",
   args = { { name = "percent", type = "number", min = 20, max = 100 } },
   run = function(args) ns.Print(L["opacity %s"]:format(ns.Color("value", SetOpacity(args.percent) .. "%"))) end,
 })
-ns.Command({ name = "config", help = L["open the settings page"], run = ns.OpenSettings })
+ns.Command({ name = "config", help = "open the settings page", run = ns.OpenSettings })
 ns.Slash({ "/estidmg", "/edmg", "/esd" }, Status)
