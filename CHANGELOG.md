@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - 2026-11-17
+
+### Changed
+
+- CurseForge uploads are named after the package, like the GitHub zip.
+- The TOC targets WoW Forever only (interface 16001), so uploads no longer carry a Retail game version.
+
 ## [0.1.1] - 2026-11-17
 
 ### Fixed

@@ -1,4 +1,4 @@
-## Interface: 16001, 120105
+## Interface: 16001
 ## Title: EstiDmg
 ## Notes: Marks the estimated damage of casts on enemy health bars.
 ## Author: tf4482
