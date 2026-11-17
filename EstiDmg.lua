@@ -71,38 +71,41 @@ local function GetHost(unit)
   return plate, uf and uf.healthBar
 end
 
--- overlay status bar on a health bar, created on first use
+-- damage texture on a health bar, between the fill and the text, created on first use
 local function GetOverlay(bar)
-  local ov = overlays[bar]
-  if not ov then
-    -- own clip frame keeps the overlay inside the bar
-    local clip = CreateFrame("Frame", nil, bar)
-    clip:SetAllPoints(bar)
-    clip:SetClipsChildren(true)
-    ov = CreateFrame("StatusBar", nil, clip)
-    ov:SetStatusBarTexture("Interface/Buttons/WHITE8X8")
-    ov:SetStatusBarColor(1, 0.1, 0.1, 0.5)
-    -- fill grows to the left, starting at the end of the current health
-    ov:SetReverseFill(true)
+  local o = overlays[bar]
+  if not o then
     local edge = bar:GetStatusBarTexture()
+    -- invisible helper bar: its fill spans the damage part, even with secret health
+    local ov = CreateFrame("StatusBar", nil, bar)
+    ov:SetStatusBarTexture("Interface/Buttons/WHITE8X8")
+    ov:SetAlpha(0)
+    ov:SetReverseFill(true)
     ov:SetPoint("TOPRIGHT", edge, "TOPRIGHT")
     ov:SetPoint("BOTTOMRIGHT", edge, "BOTTOMRIGHT")
+    -- visible texture on the bar itself, stretched between the helper fill and the health edge
+    local tex = bar:CreateTexture(nil, "ARTWORK", nil, 2)
+    tex:SetColorTexture(1, 0.1, 0.1, 0.85)
+    tex:SetPoint("TOPLEFT", ov:GetStatusBarTexture(), "TOPLEFT")
+    tex:SetPoint("BOTTOMRIGHT", edge, "BOTTOMRIGHT")
     -- same shape mask as the green fill, when the frame has one
     local parent = bar:GetParent()
     local mask = parent and parent.HealthBarMask
-    if mask then ov:GetStatusBarTexture():AddMaskTexture(mask) end
-    overlays[bar] = ov
+    if mask then tex:AddMaskTexture(mask) end
+    tex:Hide()
+    o = { ov = ov, tex = tex }
+    overlays[bar] = o
   end
-  return ov
+  return o
 end
 
 -- mark the damage as the part of the bar that would be lost; works with secret health
 local function DrawBar(bar, unit, damage)
-  local ov = GetOverlay(bar)
-  ov:SetWidth(bar:GetWidth())
-  ov:SetMinMaxValues(0, UnitHealthMax(unit))
-  ov:SetValue(damage)
-  ov:Show()
+  local o = GetOverlay(bar)
+  o.ov:SetWidth(bar:GetWidth())
+  o.ov:SetMinMaxValues(0, UnitHealthMax(unit))
+  o.ov:SetValue(damage)
+  o.tex:Show()
 end
 
 -- whether this unit type is switched on in the settings
@@ -135,7 +138,7 @@ local function Update(unit)
   if unit ~= "target" and unit ~= "focus" and unit:sub(1, 9) ~= "nameplate" then return end
   local host, bar = GetHost(unit)
   if not host or not bar then return end
-  GetOverlay(bar):Hide()
+  GetOverlay(bar).tex:Hide()
   showing[unit] = nil
   if not (ns.db.enabled and Wanted(unit) and UnitCanAttack("player", unit)) then return end
   local damage = DamageFor(unit)
@@ -186,10 +189,10 @@ local function Debug()
     -- draw the bar now and report its state
     if damage and bar then
       DrawBar(bar, "target", damage)
-      local ov = GetOverlay(bar)
+      local o = GetOverlay(bar)
       ns.Status("health secret", tostring(issecretvalue and issecretvalue(UnitHealthMax("target"))))
       ns.Status("bar width / visible", tostring(bar:GetWidth()) .. " / " .. tostring(bar:IsVisible()))
-      ns.Status("overlay width / shown", tostring(ov:GetWidth()) .. " / " .. tostring(ov:IsVisible()))
+      ns.Status("overlay width / shown", tostring(o.ov:GetWidth()) .. " / " .. tostring(o.tex:IsVisible()))
     end
   end
 end
