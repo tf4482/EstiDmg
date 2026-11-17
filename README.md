@@ -8,6 +8,7 @@ Marks the estimated damage of casts on enemy health bars, like Estimated Heals d
 - **Own casts** - your own cast shows its damage on your target.
 - **Nameplates, target, focus** - each can be switched off separately, as can own casts.
 - **Bar color and opacity** - pick a preset or any color with the color picker (dark red by default) and set how solid the bar is.
+- **Other UI addons** - finds the health bar of Blizzard, ElvUI, Shadowed Unit Frames, X-Perl, PitBull4, Unhalted Unit Frames, Plater, Threat Plates, and Kui, and searches other frames automatically.
 - **Remembered** - settings are saved per account; default is on.
 - **Settings page** - all options in the game's settings and the addon compartment menu.
 
