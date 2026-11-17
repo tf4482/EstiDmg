@@ -86,38 +86,34 @@ local function GetText(host)
   return fs
 end
 
--- overlay texture on a health bar, created on first use
+-- overlay status bar on a health bar, created on first use
 local function GetOverlay(bar)
-  local tex = overlays[bar]
-  if not tex then
-    local layer = CreateFrame("Frame", nil, bar)
-    layer:SetAllPoints(bar)
-    tex = layer:CreateTexture(nil, "OVERLAY")
-    tex:SetColorTexture(1, 0.1, 0.1, 0.55)
-    overlays[bar] = tex
+  local ov = overlays[bar]
+  if not ov then
+    -- own clip frame keeps the overlay inside the bar
+    local clip = CreateFrame("Frame", nil, bar)
+    clip:SetAllPoints(bar)
+    clip:SetClipsChildren(true)
+    ov = CreateFrame("StatusBar", nil, clip)
+    ov:SetStatusBarTexture("Interface/Buttons/WHITE8X8")
+    ov:SetStatusBarColor(1, 0.1, 0.1, 0.6)
+    -- fill grows to the left, starting at the end of the current health
+    ov:SetReverseFill(true)
+    local edge = bar:GetStatusBarTexture()
+    ov:SetPoint("TOPRIGHT", edge, "TOPRIGHT")
+    ov:SetPoint("BOTTOMRIGHT", edge, "BOTTOMRIGHT")
+    overlays[bar] = ov
   end
-  return tex
+  return ov
 end
 
--- draw the damage as the part of the bar that would be lost
+-- mark the damage as the part of the bar that would be lost; works with secret health
 local function DrawBar(bar, unit, damage)
-  local tex = GetOverlay(bar)
-  local health, max = UnitHealth(unit), UnitHealthMax(unit)
-  if issecretvalue and (issecretvalue(health) or issecretvalue(max)) then
-    tex:Hide()
-    return
-  end
-  local width = bar:GetWidth()
-  if not max or max <= 0 or width <= 0 then
-    tex:Hide()
-    return
-  end
-  local lost = math.min(damage, health) / max * width
-  tex:ClearAllPoints()
-  tex:SetPoint("TOPLEFT", bar, "TOPLEFT", health / max * width - lost, 0)
-  tex:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", health / max * width - lost, 0)
-  tex:SetWidth(math.max(lost, 1))
-  tex:Show()
+  local ov = GetOverlay(bar)
+  ov:SetWidth(bar:GetWidth())
+  ov:SetMinMaxValues(0, UnitHealthMax(unit))
+  ov:SetValue(damage)
+  ov:Show()
 end
 
 -- whether this unit type is switched on in the settings
@@ -203,13 +199,13 @@ local function Debug()
     ns.Status("description", desc and desc:sub(1, 160):gsub("|", "||") or "nil")
     local damage = Estimate(lastSpell)
     ns.Status("estimate", tostring(damage))
-    -- draw the bar now and report its geometry
+    -- draw the bar now and report its state
     if damage and bar then
       DrawBar(bar, "target", damage)
-      local tex = GetOverlay(bar)
-      ns.Status("health / max", tostring(UnitHealth("target")) .. " / " .. tostring(UnitHealthMax("target")))
+      local ov = GetOverlay(bar)
+      ns.Status("health secret", tostring(issecretvalue and issecretvalue(UnitHealthMax("target"))))
       ns.Status("bar width / visible", tostring(bar:GetWidth()) .. " / " .. tostring(bar:IsVisible()))
-      ns.Status("overlay width / shown", tostring(tex:GetWidth()) .. " / " .. tostring(tex:IsVisible()))
+      ns.Status("overlay width / shown", tostring(ov:GetWidth()) .. " / " .. tostring(ov:IsVisible()))
     end
   end
 end
