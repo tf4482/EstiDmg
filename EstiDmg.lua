@@ -19,6 +19,8 @@ local COLORS = {
   { "blue", "Blue", 0.2, 0.4, 1 },
   { "black", "Black", 0, 0, 0 },
 }
+-- unit tokens of the visible nameplates, kept from the plate events
+local plateUnits = {}
 -- units currently showing an estimate, by unit token
 local showing = {}
 
@@ -261,8 +263,8 @@ end
 local function Refresh()
   Update("target")
   Update("focus")
-  for _, plate in ipairs(C_NamePlate.GetNamePlates()) do
-    Update(plate.namePlateUnitToken)
+  for unit in pairs(plateUnits) do
+    Update(unit)
   end
 end
 
@@ -356,15 +358,22 @@ for _, event in ipairs({
   "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED",
   "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_DELAYED",
   "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_STOP",
-  "UNIT_SPELLCAST_CHANNEL_UPDATE", "NAME_PLATE_UNIT_ADDED",
+  "UNIT_SPELLCAST_CHANNEL_UPDATE",
 }) do
   events[event] = OnCast
+end
+
+-- a plate got a unit: remember the token and mark it
+function events.NAME_PLATE_UNIT_ADDED(unit)
+  plateUnits[unit] = true
+  Update(unit)
 end
 
 -- plates are pooled: clear the estimate when released
 function events.NAME_PLATE_UNIT_REMOVED(unit)
   Update(unit)
   showing[unit] = nil
+  plateUnits[unit] = nil
 end
 
 -- target or focus switched: old plates must lose their estimate too
