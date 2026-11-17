@@ -58,9 +58,14 @@ end
 local function GetHost(unit)
   if unit == "target" or unit == "focus" then
     local host = unit == "target" and TargetFrame or FocusFrame
-    local content = host and host.TargetFrameContent
+    if not host then return nil end
+    local content = host.TargetFrameContent
     local main = content and content.TargetFrameContentMain
-    return host, (main and main.HealthBar) or (host and host.healthbar)
+    local container = main and main.HealthBarsContainer
+    local name = host:GetName()
+    -- Retail-like layout first, then older frame fields and global names
+    return host, (container and container.HealthBar) or (main and main.HealthBar)
+      or host.healthbar or host.healthBar or (name and _G[name .. "HealthBar"])
   end
   local plate = C_NamePlate.GetNamePlateForUnit(unit)
   if not plate or plate:IsForbidden() then return nil end
