@@ -13,19 +13,26 @@ local overlays = {}
 -- units currently showing an estimate, by unit token
 local showing = {}
 
--- first number in a description that is followed by a damage word
+-- number from text with thousands separators dropped
+local function ToNumber(text)
+  return tonumber((text:gsub("[%.,](%d%d%d)", "%1")))
+end
+
+-- first damage value in a description; a range like "10 to 20" gives its middle
 local function ParseDamage(desc)
   desc = desc:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
   local from = 1
   while true do
-    local s, e, num = desc:find("(%d[%d%.,]*)", from)
-    if not s then return nil end
-    local after = desc:sub(e + 1, e + 24):lower()
+    local _, e, num = desc:find("(%d[%d%.,]*)", from)
+    if not num then return nil end
+    local rest = desc:sub(e + 1)
+    -- optional upper end of a range: "- 20" or a short word like "to" or "bis"
+    local high = rest:match("^%s*%-%s*(%d[%d%.,]*)") or rest:match("^%s+%a%a?%a?%s+(%d[%d%.,]*)")
+    local after = rest:sub(1, high and 40 or 24):lower()
     for _, word in ipairs(WORDS) do
       if after:find(word, 1, true) then
-        -- drop thousands separators
-        local value = tonumber((num:gsub("[%.,](%d%d%d)", "%1")))
-        if value then return value end
+        local low, top = ToNumber(num), high and ToNumber(high)
+        if low then return top and (low + top) / 2 or low end
       end
     end
     from = e + 1
@@ -131,6 +138,8 @@ end
 -- show or clear the estimate for one unit
 local function Update(unit)
   if ns.db == nil or not unit then return end
+  -- only target, focus, and nameplates; other tokens are not allowed
+  if unit ~= "target" and unit ~= "focus" and unit:sub(1, 9) ~= "nameplate" then return end
   local host, bar = GetHost(unit)
   if not host then return end
   local fs = GetText(host)
@@ -143,7 +152,7 @@ local function Update(unit)
   showing[unit] = true
   fs:ClearAllPoints()
   fs:SetPoint("BOTTOM", host, "TOP", 0, (unit == "target" or unit == "focus") and 2 or 14)
-  fs:SetText("~" .. BreakUpLargeNumbers(damage))
+  fs:SetText("~" .. BreakUpLargeNumbers(math.floor(damage + 0.5)))
   if bar and ns.db.bars then DrawBar(bar, unit, damage) end
 end
 
