@@ -7,7 +7,7 @@ Marks the estimated damage of casts on enemy health bars, like Estimated Heals d
 - **Damage bar** - a red part of the health bar shows the expected health loss while an enemy casts a damaging spell.
 - **Own casts** - your own cast shows its damage on your target.
 - **Nameplates, target, focus** - each can be switched off separately, as can own casts.
-- **Free bar colors** - pick any color with the color picker, separately for unit frames and nameplates (dark red by default), and set how solid the bar is.
+- **Bar colors** - pick a preset color, or optionally any color with the color picker, separately for unit frames and nameplates (dark red by default), and set how solid the bar is.
 - **Other UI addons** - tested with Platynator; it may work with other unit frame and nameplate addons.
 - **Remembered** - settings are saved per account; default is on.
 - **Settings page** - all options in the game's settings and the addon compartment menu.
