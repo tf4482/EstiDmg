@@ -434,10 +434,17 @@ local function Status()
   ns.Print(ns.OnOff(ns.db.enabled) .. hint)
 end
 
+-- change a setting through the settings API so the page updates too; plain write if that fails
+local function SetSetting(key, value)
+  if not pcall(Settings.SetValue, "EstiDmg_" .. key, value) then
+    ns.db[key] = value
+    Refresh()
+  end
+end
+
 -- switch the feature and report the new state
 local function Switch(enabled)
-  ns.db.enabled = enabled
-  Refresh()
+  SetSetting("enabled", enabled)
   Status()
 end
 
@@ -474,24 +481,38 @@ local function Debug()
     .. ", plate " .. (plateBar and Safe(GetOverlay(plateBar).tex:IsVisible()) or "none"))
 end
 
--- open the color picker for a free bar color; "frames", "plates", "critframes", or "critplates"
-local function PickColor(kind)
-  local crit = kind:sub(1, 4) == "crit"
-  local unit = kind:find("plates", 1, true) and "nameplate" or "target"
+-- unit and crit flag of a color kind
+local function KindOf(kind)
+  return kind:find("plates", 1, true) and "nameplate" or "target", kind:sub(1, 4) == "crit"
+end
+
+-- true while the picker sets the color choice, so the dropdown handler does not reopen it
+local picking = false
+
+-- open the color picker for a free bar color; "frames", "plates", "critframes", or "critplates";
+-- choice is the color choice to restore on cancel, default the current one
+local function PickColor(kind, choice)
+  local unit, crit = KindOf(kind)
   local colorKey, customKey = ColorKeys(unit, crit)
   local r, g, b = ColorOf(unit, crit)
-  local previous = { r, g, b }
+  choice = choice or ns.db[colorKey]
+  local previous = { unpack(ns.db[customKey]) }
   ColorPickerFrame:SetupColorPickerAndShow({
     r = r, g = g, b = b, hasOpacity = false,
     -- live update while the color changes
     swatchFunc = function()
-      ns.db[colorKey] = "custom"
       ns.db[customKey] = { ColorPickerFrame:GetColorRGB() }
+      picking = true
+      SetSetting(colorKey, "custom")
+      picking = false
       Refresh()
     end,
-    -- keep the old color on cancel
+    -- restore the old choice and custom color on cancel
     cancelFunc = function()
       ns.db[customKey] = previous
+      picking = true
+      SetSetting(colorKey, choice)
+      picking = false
       Refresh()
     end,
   })
@@ -499,8 +520,11 @@ end
 
 -- color dropdown handler for a kind: "custom" opens the picker
 local function OnColor(kind)
+  -- choice before the latest change, restored if the picker is cancelled
+  local last = ns.db[ColorKeys(KindOf(kind))]
   return function(value)
-    if value == "custom" then PickColor(kind) end
+    if value == "custom" and not picking then PickColor(kind, last) end
+    last = value
     Refresh()
   end
 end
@@ -579,10 +603,7 @@ end)
 local function SetOpacity(percent)
   local value = math.max(20, math.min(100, math.floor(percent + 0.5)))
   -- the settings value also moves the slider and runs Refresh
-  if not pcall(Settings.SetValue, "EstiDmg_opacity", value) then
-    ns.db.opacity = value
-    Refresh()
-  end
+  SetSetting("opacity", value)
   return value
 end
 
