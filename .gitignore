@@ -136,3 +136,4 @@ CLAUDE*
 !*.example.*
 AGENTS.*
 acme.json
+release/
