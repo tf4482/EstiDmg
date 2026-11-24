@@ -2,13 +2,17 @@
 
 local _, ns = ...
 
--- missing keys give back the English text itself
-local L = setmetatable({}, { __index = function(_, key) return key end })
-ns.L = L
+-- English defaults: any key without an override shows as itself
+ns.L = setmetatable({}, { __index = function(_, key) return key end })
 
+-- German overrides; component keys are the T("...") strings in the component files
 if GetLocale() == "deDE" then
+  local L = ns.L
   local de = {
     -- settings page
+    ["Per character"] = "Pro Charakter",
+    ["Save the settings below for this character only instead of the whole account"] =
+      "Die folgenden Einstellungen nur für diesen Charakter statt für den ganzen Account speichern",
     ["Enabled"] = "Aktiviert",
     ["Mark estimated damage on enemy health bars"] = "Geschätzten Schaden auf den Lebensleisten von Gegnern markieren",
     ["Nameplates"] = "Namensplaketten",
@@ -43,6 +47,11 @@ if GetLocale() == "deDE" then
     -- status messages
     ["(turn on with %s)"] = "(einschalten mit %s)",
     ["opacity %s"] = "Deckkraft %s",
+    ["per character"] = "pro Charakter",
+    ["test: target an enemy out of combat first"] = "Test: zuerst außerhalb des Kampfes einen Gegner anvisieren",
+    ["test: sample damage on %s bars"] = "Test: Beispielschaden auf %s Balken",
+    ["new: per-character settings and more commands, see %s"] =
+      "Neu: Einstellungen pro Charakter und mehr Befehle, siehe %s",
     ["on"] = "an",
     ["off"] = "aus",
   }

@@ -5,6 +5,7 @@
 ## Version: @project-version@
 ## IconTexture: Interface/Icons/Spell_Fire_Fireball02
 ## SavedVariables: EstiDmgDB
+## SavedVariablesPerCharacter: EstiDmgCharDB
 ## X-Curse-Project-ID: 1812227
 
 Locale.lua
