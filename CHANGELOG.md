@@ -4,6 +4,29 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- "Per character" checkbox and `/estidmg character on|off`: settings per account or per character.
+- Chat commands for every setting: `nameplates`, `frames`, `own`, `crit` (each `on|off`), and `color <where> <color>` for preset colors.
+- `/estidmg test` draws a sample estimate on the target; `/estidmg reset` restores the defaults.
+- Addon icon in the addon list and compartment menu.
+
+### Changed
+
+- `/estidmg debug` now takes `on|off`; `on` also prints the pipeline state and logs what the addon draws until `/reload`.
+- Shared components, CI, and lint settings updated to the current house style.
+
+### Removed
+
+- The number box next to the opacity slider; set exact values with `/estidmg opacity`.
+
+### Fixed
+
+- `on`, `off`, and the color picker now update the settings page and its dropdowns.
+- Cancelling the color picker restores the previous color choice as well as the custom color.
+
 ## [0.1.3] - 2026-11-17
 
 ### Fixed

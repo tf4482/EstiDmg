@@ -300,9 +300,9 @@ end
 -- red, green, blue of the chosen bar color for a unit
 local function ColorOf(unit, crit)
   local colorKey, customKey = ColorKeys(unit, crit)
-  if ns.db[colorKey] == "custom" then return unpack(ns.db[customKey]) end
+  if ns.Get(colorKey) == "custom" then return unpack(ns.db[customKey]) end
   for _, c in ipairs(COLORS) do
-    if c[1] == ns.db[colorKey] then return c[3], c[4], c[5] end
+    if c[1] == ns.Get(colorKey) then return c[3], c[4], c[5] end
   end
   return 0.6, 0.05, 0.05
 end
@@ -310,7 +310,7 @@ end
 -- bar color and opacity from the settings
 local function ApplyColor(tex, unit, crit)
   local r, g, b = ColorOf(unit, crit)
-  tex:SetColorTexture(r, g, b, ns.db.opacity / 100)
+  tex:SetColorTexture(r, g, b, ns.Get("opacity") / 100)
 end
 
 -- copy the shape masks of the bar fill onto the damage texture, so it follows the bar frame
@@ -347,8 +347,9 @@ local function BarWidth(o, bar)
   return width
 end
 
--- mark the damage, and the crit extension when given, on the bar; works with secret health
-local function DrawBar(bar, unit, damage, crit)
+-- mark the damage, and the crit extension when given, on the bar; works with secret health;
+-- look is the unit whose colors to use, default unit
+local function DrawBar(bar, unit, damage, crit, look)
   local o = GetOverlay(bar)
   local width = BarWidth(o, bar)
   -- without a known width the bar cannot be scaled
@@ -361,13 +362,13 @@ local function DrawBar(bar, unit, damage, crit)
   o.ov:SetWidth(width)
   o.ov:SetMinMaxValues(0, UnitHealthMax(unit))
   o.ov:SetValue(damage)
-  ApplyColor(o.tex, unit)
+  ApplyColor(o.tex, look or unit)
   o.tex:Show()
   if crit then
     o.critOv:SetWidth(width)
     o.critOv:SetMinMaxValues(0, UnitHealthMax(unit))
     o.critOv:SetValue(crit)
-    ApplyColor(o.critTex, unit, true)
+    ApplyColor(o.critTex, look or unit, true)
     o.critTex:Show()
   else
     o.critTex:Hide()
@@ -376,8 +377,8 @@ end
 
 -- whether this unit type is switched on in the settings
 local function Wanted(unit)
-  if unit == "target" or unit == "focus" then return ns.db.frames end
-  return ns.db.nameplates and unit:sub(1, 9) == "nameplate"
+  if unit == "target" or unit == "focus" then return ns.Get("frames") end
+  return ns.Get("nameplates") and unit:sub(1, 9) == "nameplate"
 end
 
 -- spell ID of the unit's current cast or channel
@@ -391,13 +392,13 @@ end
 
 -- damage and crit damage to show: own cast on the target first, then the enemy cast
 local function DamageFor(unit)
-  local own = ns.db.own and UnitIsUnit(unit, "target") and CastSpellID("player")
+  local own = ns.Get("own") and UnitIsUnit(unit, "target") and CastSpellID("player")
   local spellID = own or CastSpellID(unit)
   if not spellID then return nil end
   local damage, school = Estimate(spellID)
   if not damage then return nil end
   -- the crit estimate uses the player talents, so only for the player cast
-  local crit = own and ns.db.crit and damage * CritMultiplier(spellID, school) or nil
+  local crit = own and ns.Get("crit") and damage * CritMultiplier(spellID, school) or nil
   return damage, crit
 end
 
@@ -409,10 +410,11 @@ local function Update(unit)
   local bars = BarsFor(unit)
   for _, bar in ipairs(bars) do HideOverlay(bar) end
   showing[unit] = nil
-  if not (ns.db.enabled and Wanted(unit) and UnitCanAttack("player", unit)) then return end
+  if not (ns.Get("enabled") and Wanted(unit) and UnitCanAttack("player", unit)) then return end
   local damage, crit = DamageFor(unit)
   if not damage then return end
   showing[unit] = true
+  ns.Debug(unit .. ": damage " .. damage .. (crit and ", crit " .. crit or "") .. " on " .. #bars .. " bars")
   for _, bar in ipairs(bars) do DrawBar(bar, unit, damage, crit) end
 end
 
@@ -425,19 +427,26 @@ local function Refresh()
   end
 end
 
+
 -- current state, with a hint while the feature is off
 local function Status()
   local hint = ""
-  if not ns.db.enabled then
+  if not ns.Get("enabled") then
     hint = " " .. L["(turn on with %s)"]:format(ns.Color("command", ns.slash .. " on"))
   end
-  ns.Print(ns.OnOff(ns.db.enabled) .. hint)
+  ns.Print(ns.OnOff(ns.Get("enabled")) .. hint)
+  ns.Status(L["per character"], ns.OnOff(ns.char.perCharacter))
 end
 
 -- switch the feature and report the new state
 local function Switch(enabled)
-  ns.db.enabled = enabled
-  Refresh()
+  ns.Set("enabled", enabled)
+  Status()
+end
+
+-- switch per-character settings and report the new state
+local function PerCharacter(enabled)
+  ns.Set("perCharacter", enabled)
   Status()
 end
 
@@ -448,10 +457,10 @@ local function Safe(value)
 end
 
 -- print the state of the pipeline in a few short lines
-local function Debug()
+local function DebugState()
   local bars = BarsFor("target")
   local plate = C_NamePlate.GetNamePlateForUnit("target")
-  ns.Status("state", "enabled " .. tostring(ns.db.enabled) .. ", casts " .. castEvents
+  ns.Status("state", "enabled " .. tostring(ns.Get("enabled")) .. ", casts " .. castEvents
     .. ", hostile " .. tostring(UnitCanAttack("player", "target")))
   ns.Status("bars", #bars .. " on target frame, " .. ((plate and PlateBar(plate)) and "1" or "0") .. " on plate")
   if not lastSpell then return end
@@ -467,31 +476,69 @@ local function Debug()
   -- draw on the target frame and the plate now and report whether they are shown
   local plateBar = plate and PlateBar(plate)
   for _, bar in ipairs({ bars[1] or false, plateBar or false }) do
-    if bar then DrawBar(bar, "target", damage, ns.db.crit and damage * CritMultiplier(lastSpell, school) or nil) end
+    if bar then DrawBar(bar, "target", damage, ns.Get("crit") and damage * CritMultiplier(lastSpell, school) or nil) end
   end
   ns.Status("bar", "health secret " .. Safe(issecretvalue and issecretvalue(UnitHealthMax("target")))
     .. ", frame " .. (bars[1] and Safe(GetOverlay(bars[1]).tex:IsVisible()) or "none")
     .. ", plate " .. (plateBar and Safe(GetOverlay(plateBar).tex:IsVisible()) or "none"))
 end
 
--- open the color picker for a free bar color; "frames", "plates", "critframes", or "critplates"
-local function PickColor(kind)
-  local crit = kind:sub(1, 4) == "crit"
-  local unit = kind:find("plates", 1, true) and "nameplate" or "target"
+-- draw a sample estimate of a quarter of the target's health on its frames and plate
+local function Test()
+  local max = UnitExists("target") and UnitCanAttack("player", "target") and UnitHealthMax("target")
+  if not max or (issecretvalue and issecretvalue(max)) then
+    return ns.Warn(L["test: target an enemy out of combat first"])
+  end
+  local damage = max / 4
+  local crit = ns.Get("crit") and damage * 1.5 or nil
+  local count = 0
+  for _, bar in ipairs(BarsFor("target")) do
+    DrawBar(bar, "target", damage, crit)
+    count = count + 1
+  end
+  local plate = C_NamePlate.GetNamePlateForUnit("target")
+  local plateBar = plate and not plate:IsForbidden() and PlateBar(plate)
+  if plateBar then
+    DrawBar(plateBar, "target", damage, crit, "nameplate")
+    count = count + 1
+  end
+  -- cleared by the next health, cast, or target update
+  showing.target = true
+  ns.Print(L["test: sample damage on %s bars"]:format(ns.Color("value", count)))
+end
+
+-- unit and crit flag of a color kind
+local function KindOf(kind)
+  return kind:find("plates", 1, true) and "nameplate" or "target", kind:sub(1, 4) == "crit"
+end
+
+-- true while the picker sets the color choice, so the dropdown handler does not reopen it
+local picking = false
+
+-- open the color picker for a free bar color; "frames", "plates", "critframes", or "critplates";
+-- choice is the color choice to restore on cancel, default the current one
+local function PickColor(kind, choice)
+  local unit, crit = KindOf(kind)
   local colorKey, customKey = ColorKeys(unit, crit)
   local r, g, b = ColorOf(unit, crit)
-  local previous = { r, g, b }
+  choice = choice or ns.Get(colorKey)
+  local previous = { unpack(ns.db[customKey]) }
   ColorPickerFrame:SetupColorPickerAndShow({
     r = r, g = g, b = b, hasOpacity = false,
     -- live update while the color changes
     swatchFunc = function()
-      ns.db[colorKey] = "custom"
       ns.db[customKey] = { ColorPickerFrame:GetColorRGB() }
+      picking = true
+      ns.Set(colorKey, "custom")
+      picking = false
       Refresh()
     end,
-    -- keep the old color on cancel
+    -- restore the old choice and custom color on cancel
     cancelFunc = function()
       ns.db[customKey] = previous
+      picking = true
+      ns.Set(colorKey, choice)
+      picking = false
       Refresh()
     end,
   })
@@ -499,8 +546,11 @@ end
 
 -- color dropdown handler for a kind: "custom" opens the picker
 local function OnColor(kind)
+  -- choice before the latest change, restored if the picker is cancelled
+  local last = ns.Get((ColorKeys(KindOf(kind))))
   return function(value)
-    if value == "custom" then PickColor(kind) end
+    if value == "custom" and not picking then PickColor(kind, last) end
+    last = value
     Refresh()
   end
 end
@@ -553,6 +603,7 @@ events.UNIT_MAXHEALTH = OnHealth
 -- talents changed: read them again on the next crit estimate
 local function OnTalents()
   talentRanks = nil
+  ns.Debug("talents changed")
   if ns.db ~= nil then Refresh() end
 end
 events.PLAYER_TALENT_UPDATE = OnTalents
@@ -562,69 +613,35 @@ events.TRAIT_CONFIG_UPDATED = OnTalents
 
 -- spell text arrived after a request
 function events.SPELL_DATA_LOAD_RESULT(spellID)
-  if requested[spellID] and ns.db ~= nil and ns.db.enabled then Refresh() end
+  if requested[spellID] and ns.db ~= nil and ns.Get("enabled") then Refresh() end
 end
 
 -- one frame dispatching all events above
 local frame = CreateFrame("Frame")
 for event in pairs(events) do
-  -- some talent events do not exist on every client
-  pcall(frame.RegisterEvent, frame, event)
+  -- skip events this client does not know, e.g. some talent events
+  if C_EventUtils.IsEventValid(event) then frame:RegisterEvent(event) end
 end
 frame:SetScript("OnEvent", function(_, event, ...)
   events[event](...)
 end)
 
--- set the opacity in percent from the settings page, a command, or the number box
+-- set the opacity in percent from the settings page or a command
 local function SetOpacity(percent)
   local value = math.max(20, math.min(100, math.floor(percent + 0.5)))
   -- the settings value also moves the slider and runs Refresh
-  if not pcall(Settings.SetValue, "EstiDmg_opacity", value) then
-    ns.db.opacity = value
-    Refresh()
-  end
+  ns.Set("opacity", value)
   return value
 end
 
--- best effort: a number box next to the opacity slider; the control is Blizzard's, so all guarded
-local function OpacityBox()
-  if not SettingsSliderControlMixin then return end
-  hooksecurefunc(SettingsSliderControlMixin, "Init", function(self, initializer)
-    pcall(function()
-      local box = self.EstiDmgBox
-      if initializer:GetSetting():GetVariable() ~= "EstiDmg_opacity" then
-        if box then box:Hide() end
-        return
-      end
-      if not box then
-        box = CreateFrame("EditBox", nil, self, "InputBoxTemplate")
-        box:SetSize(40, 20)
-        box:SetAutoFocus(false)
-        box:SetNumeric(true)
-        box:SetMaxLetters(3)
-        box:SetPoint("RIGHT", self, "RIGHT", -8, 0)
-        box:SetScript("OnEnterPressed", function(b)
-          SetOpacity(tonumber(b:GetText()) or ns.db.opacity)
-          b:ClearFocus()
-        end)
-        box:SetScript("OnEscapePressed", function(b)
-          b:SetText(ns.db.opacity)
-          b:ClearFocus()
-        end)
-        self.EstiDmgBox = box
-        -- keep the box in step when the slider moves
-        Settings.SetOnValueChangedCallback("EstiDmg_opacity", function(_, _, value)
-          pcall(box.SetText, box, value)
-        end, box)
-      end
-      box:SetText(ns.db.opacity)
-      box:Show()
-    end)
-  end)
-end
+-- color choices: preset values, then the free color
+local choices = {}
+for i, c in ipairs(COLORS) do choices[i] = { c[1], c[2] } end
+choices[#choices + 1] = { "custom", L["Custom..."] }
 
 -- saved state; settings page once loaded
 ns.Store("EstiDmgDB", {
+  _version = 0,
   enabled = true, nameplates = true, frames = true, own = true, crit = false, opacity = 85,
   color = "darkred", custom = { 0.6, 0.05, 0.05 },
   plateColor = "darkred", plateCustom = { 0.6, 0.05, 0.05 },
@@ -633,38 +650,95 @@ ns.Store("EstiDmgDB", {
 }, function(db)
   -- opacity is a percent now; older versions saved a fraction
   if db.opacity <= 1 then db.opacity = math.floor(db.opacity * 100 + 0.5) end
+  -- version 1: per-character settings and changed commands; one notice line once
+  if db._version < 1 then
+    db._version = 1
+    ns.Print(L["new: per-character settings and more commands, see %s"]:format(ns.Color("command", "/estidmg help")))
+  end
   ns.Settings()
   ns.Checkbox("enabled", L["Enabled"], L["Mark estimated damage on enemy health bars"], Refresh)
   ns.Checkbox("nameplates", L["Nameplates"], L["Mark the damage on enemy nameplates"], Refresh)
   ns.Checkbox("frames", L["Target and focus"], L["Mark the damage on the target and focus frames"], Refresh)
   ns.Checkbox("own", L["Own casts"], L["Show the damage of your own cast on your target"], Refresh)
   ns.Checkbox("crit", L["Crit extension"], L["Add a bar part for a possible crit of your own cast, with your crit damage talents"], Refresh)
-  local choices = {}
-  for i, c in ipairs(COLORS) do choices[i] = { c[1], c[2] } end
-  choices[#choices + 1] = { "custom", L["Custom..."] }
   ns.Dropdown("color", L["Unit frame color"], choices, L["Bar color on target and focus frames; Custom opens the color picker"], OnColor("frames"))
   ns.Dropdown("plateColor", L["Nameplate color"], choices, L["Bar color on nameplates; Custom opens the color picker"], OnColor("plates"))
   ns.Dropdown("critColor", L["Unit frame crit color"], choices, L["Crit extension color on target and focus frames"], OnColor("critframes"))
   ns.Dropdown("plateCritColor", L["Nameplate crit color"], choices, L["Crit extension color on nameplates"], OnColor("critplates"))
   ns.Slider("opacity", L["Bar opacity (%)"], 20, 100, 5, L["How solid the damage bar is"], Refresh)
-  OpacityBox()
 end)
 
 -- chat commands
 ns.Command({ name = "on", help = "turn the estimates on", run = function() Switch(true) end })
 ns.Command({ name = "off", help = "turn the estimates off", run = function() Switch(false) end })
-ns.Command({ name = "debug", help = "show why no estimate appears", run = Debug })
+
+-- one on|off subcommand per checkbox setting besides enabled
+for _, flag in ipairs({
+  { "nameplates", "mark the damage on enemy nameplates" },
+  { "frames", "mark the damage on the target and focus frames" },
+  { "own", "show the damage of your own cast on your target" },
+  { "crit", "add a bar part for a possible crit of your own cast" },
+}) do
+  local key = flag[1]
+  ns.Command({
+    name = key,
+    help = flag[2],
+    args = { { name = "state", choices = { "on", "off" } } },
+    run = function(args)
+      ns.Set(key, args.state == "on")
+      ns.Status(key, ns.OnOff(ns.Get(key)))
+    end,
+  })
+end
+
+-- color values for the color command: presets and custom
+local colorValues = {}
+for i, c in ipairs(choices) do colorValues[i] = c[1] end
 ns.Command({
   name = "color",
-  help = "pick a free bar color",
-  args = { { name = "where", choices = { "frames", "plates", "critframes", "critplates" } } },
-  run = function(args) PickColor(args.where:lower()) end,
+  help = "set a bar color; custom or no color opens the color picker",
+  args = {
+    { name = "where", choices = { "frames", "plates", "critframes", "critplates" } },
+    { name = "color", choices = colorValues, optional = true },
+  },
+  run = function(args)
+    if not args.color or args.color == "custom" then return PickColor(args.where) end
+    local colorKey = ColorKeys(KindOf(args.where))
+    ns.Set(colorKey, args.color)
+    ns.Status(args.where, ns.Color("value", args.color))
+  end,
 })
 ns.Command({
   name = "opacity",
   help = "set the bar opacity in percent",
   args = { { name = "percent", type = "number", min = 20, max = 100 } },
   run = function(args) ns.Print(L["opacity %s"]:format(ns.Color("value", SetOpacity(args.percent) .. "%"))) end,
+})
+ns.Command({
+  name = "character",
+  help = "use settings for this character only, or the account's",
+  args = { { name = "state", choices = { "on", "off" } } },
+  run = function(args) PerCharacter(args.state == "on") end,
+})
+ns.Command({ name = "test", help = "draw a sample estimate on your target", run = Test })
+ns.Command({
+  name = "reset",
+  help = "reset the active profile's settings to defaults",
+  run = function()
+    ns.ResetSettings()
+    ns.Success("settings reset to defaults")
+    Status()
+  end,
+})
+ns.Command({
+  name = "debug",
+  help = "show what the addon does in chat, until /reload; on also prints the pipeline state",
+  args = { { name = "state", choices = { "on", "off" } } },
+  run = function(args)
+    ns.debug = args.state == "on"
+    ns.Status("debug", ns.OnOff(ns.debug))
+    if ns.debug then DebugState() end
+  end,
 })
 ns.Command({ name = "config", help = "open the settings page", run = ns.OpenSettings })
 ns.Slash({ "/estidmg", "/edmg", "/esd" }, Status)
