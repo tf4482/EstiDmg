@@ -24,6 +24,7 @@ read_globals = {
   "IsInRaid",
   "MinimalSliderWithSteppersMixin",
   "Settings",
+  "SettingsDropdownControlMixin",
   -- EstiDmg
   "C_NamePlate",
   "C_Spell",
