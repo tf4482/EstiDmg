@@ -20,6 +20,7 @@
     "IsInRaid",
     "MinimalSliderWithSteppersMixin",
     "Settings",
+    "SettingsDropdownControlMixin",
     "C_NamePlate",
     "C_Spell",
     "ColorPickerFrame",
